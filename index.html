@@ -283,7 +283,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
 <div class="ov" id="ovAe"><div class="sheet">
   <h2>Modifica assenza</h2>
   <label for="aeType">Tipo</label>
-  <select id="aeType"><option value="libero">Giorno libero</option><option value="ferie">Ferie</option><option value="malattia">Malattia</option><option value="l104">Legge 104</option></select>
+  <select id="aeType"><option value="libero">Giorno libero</option><option value="ferie">Ferie</option><option value="malattia">Malattia</option><option value="permesso">Permessi</option><option value="l104">Legge 104</option></select>
   <label for="aeDate">Giorno</label>
   <input type="date" id="aeDate">
   <div id="aeBox" style="display:none">
@@ -729,7 +729,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     var fr=festiveRows(view);
     var cr0=absMonth(view).cr;
     L.push('','Ore lavorate: '+fmt(w),'Ore da contratto: '+fmt(c));
-    if(cr0)L.push('Assenze conteggiate come ore (ferie, malattia, 104): '+fmt(cr0),'Totale ore del mese (lavorate + conteggiate): '+fmt(w+cr0));
+    if(cr0)L.push('Assenze conteggiate come ore (ferie, malattia, permessi, 104): '+fmt(cr0),'Totale ore del mese (lavorate + conteggiate): '+fmt(w+cr0));
     L.push('Saldo del mese: '+fmtS(w+cr0-c),'Riporto precedente: '+fmtS(car),'Saldo banca ore: '+fmtS(car+w+cr0-c));
     var ab=absMonth(view);
     if(ab.n){
@@ -1350,7 +1350,7 @@ function pdfGeometry(opList,OPS){
   $('pgV').addEventListener('input',function(ev){if(ev.target.id==='vNote')vSel.note=ev.target.value});
 
   /* --- assenze concordate (giorni liberi): promemoria; solo la legge 104 può contare come ore --- */
-  var ABS={libero:'Giorno libero',ferie:'Ferie',malattia:'Malattia',l104:'Legge 104'};
+  var ABS={libero:'Giorno libero',ferie:'Ferie',malattia:'Malattia',permesso:'Permessi',l104:'Legge 104'};
   var aSel={type:'libero',from:null,to:null,note:'',skipWe:false,skipHol:false,count:false,hours:'8:00'},aEdit=null,aDelArmed=false;
   function absMonth(k){
     var n=0,by={},cr=0,crd=0;
@@ -1378,7 +1378,7 @@ function pdfGeometry(opList,OPS){
   }
   function aCounts(){return aSel.type!=='libero'&&aSel.count}
   function hoursOpts(sel){
-    var h='',list=[],i;for(i=30;i<=720;i+=30)list.push(i);
+    var h='',list=[],i;for(i=60;i<=720;i+=60)list.push(i);
     var cur=parseHM(sel);if(cur&&list.indexOf(cur)<0){list.push(cur);list.sort(function(a,b){return a-b})}
     list.forEach(function(m){h+='<option value="'+fmt(m)+'"'+(fmt(m)===fmt(cur||480)?' selected':'')+'>'+fmt(m)+'</option>'});
     return h;
@@ -1397,7 +1397,7 @@ function pdfGeometry(opList,OPS){
   function renderA(){
     if(!aSel.from){aSel.from=aSel.to=todayStr()}
     var h='<div style="font-weight:800;font-size:18px;margin-bottom:2px">Assenze concordate</div>'+
-      '<p class="hint" style="margin:0">Segna i giorni in cui hai comunicato di non essere disponibile. Il <b>giorno libero</b> è solo un promemoria e non cambia le ore. <b>Ferie, malattia e legge 104</b> possono invece contare come ore, con la spunta qui sotto.</p>'+
+      '<p class="hint" style="margin:0">Segna i giorni in cui hai comunicato di non essere disponibile. Il <b>giorno libero</b> è solo un promemoria e non cambia le ore. <b>Ferie, malattia, permessi e legge 104</b> possono invece contare come ore, con la spunta qui sotto.</p>'+
       '<label>Tipo</label><div class="seg wrap">'+Object.keys(ABS).map(function(t){
         return '<button type="button" data-a="type" data-t="'+t+'" class="'+(aSel.type===t?'on':'')+'" aria-pressed="'+(aSel.type===t)+'">'+ABS[t]+'</button>';
       }).join('')+'</div>';
@@ -1435,12 +1435,12 @@ function pdfGeometry(opList,OPS){
     $('aeBox').style.display=has?'':'none';
     $('aeHW').style.display=(has&&$('aeCount').checked)?'':'none';
   }
-  $('aeType').onchange=function(){var t=$('aeType').value;if(t==='ferie'||t==='malattia'){if(!$('aeCount').checked){$('aeCount').checked=true;$('aeHours').innerHTML=hoursOpts('8:00')}}aeToggle()};
+  $('aeType').onchange=function(){var t=$('aeType').value;if(t==='ferie'||t==='malattia'||t==='permesso'){if(!$('aeCount').checked){$('aeCount').checked=true;$('aeHours').innerHTML=hoursOpts('8:00')}}aeToggle()};
   $('aeCount').onchange=aeToggle;
   $('pgA').addEventListener('click',function(ev){
     var b=ev.target.closest('[data-a]');if(!b)return;
     var a=b.getAttribute('data-a');
-    if(a==='type'){aSel.type=b.getAttribute('data-t');aSel.count=(aSel.type==='ferie'||aSel.type==='malattia');aSel.hours='8:00';renderA()}
+    if(a==='type'){aSel.type=b.getAttribute('data-t');aSel.count=(aSel.type==='ferie'||aSel.type==='malattia'||aSel.type==='permesso');aSel.hours='8:00';renderA()}
     else if(a==='add'){
       var days=aDays(),cnt=aCounts(),m=cnt?aMinutes(aSel.hours):null;
       if(!days.length){toast('Nessun giorno da segnare');return}
