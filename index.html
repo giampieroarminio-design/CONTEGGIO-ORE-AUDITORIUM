@@ -379,6 +379,16 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
       <button class="btn sm" id="sRestore">Ripristina</button>
     </div>
   </details>
+  <label style="margin-top:20px">Elimina convocazioni</label>
+  <p class="hint" style="margin:0 0 8px">Cancella i turni <b>previsti</b> (non ancora confermati) in un periodo. I turni già confermati, le ore e il saldo non cambiano, salvo che tu lo chieda qui sotto.</p>
+  <div class="two">
+    <div><label for="dFrom" style="margin-top:4px">Dal</label><input type="date" id="dFrom"></div>
+    <div><label for="dTo" style="margin-top:4px">Al</label><input type="date" id="dTo"></div>
+  </div>
+  <label class="chk"><input type="checkbox" id="dConf"> Includi anche i turni già confermati</label>
+  <p class="hint" id="dInfo" style="font-weight:600;color:var(--ink);margin-top:8px"></p>
+  <button class="btn neg" id="dGo" style="width:100%">Elimina i turni del periodo</button>
+  <button class="btn sm" id="dUndo" style="width:100%;margin-top:8px;display:none">Annulla l'ultima eliminazione</button>
   <p class="credit" style="margin:16px 0 0">Ideata e sviluppata da Giampiero Arminio, con Claude (Anthropic)</p>
   <div class="act">
     <button class="btn" id="sCancel">Chiudi</button>
@@ -1637,6 +1647,64 @@ function pdfGeometry(opList,OPS){
   $('wList').addEventListener('click',function(ev){
     var b=ev.target.closest('.sqb');if(b){$('ovW').classList.remove('on');openSquadra(b.getAttribute('data-sq'))}
   });
+
+  /* --- elimina convocazioni in un periodo --- */
+  function dKey(){return KEY+'.eliminazione'}
+  function dFmt(d){return d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4)}
+  function dSel(){
+    var f=$('dFrom').value,t=$('dTo').value,inc=$('dConf').checked;
+    if(!f||!t)return {ok:false,msg:'Scegli il periodo.'};
+    if(t<f)return {ok:false,msg:'La data finale è prima di quella iniziale.'};
+    var inPer=S.entries.filter(function(e){return e.date>=f&&e.date<=t});
+    var list=inPer.filter(function(e){return inc||!conf(e)});
+    var pl=list.filter(function(e){return !conf(e)}).length;
+    return {ok:true,f:f,t:t,inc:inc,list:list,pl:pl,cf:list.length-pl,kept:inPer.length-list.length};
+  }
+  function dInfo(){
+    var r=dSel(),el=$('dInfo');
+    if(!r.ok){el.textContent=r.msg;return}
+    var t=r.pl+(r.pl===1?' turno previsto':' turni previsti');
+    if(r.inc)t+=' e '+r.cf+(r.cf===1?' turno confermato':' turni confermati');
+    t+=' da eliminare';
+    if(!r.inc&&r.kept)t+=' ('+r.kept+(r.kept===1?' confermato resta':' confermati restano')+')';
+    el.textContent=t+'.';
+  }
+  function dUndoShow(){
+    var has=false;try{has=!!localStorage.getItem(dKey())}catch(e){}
+    $('dUndo').style.display=has?'':'none';
+  }
+  ['dFrom','dTo','dConf'].forEach(function(id){$(id).addEventListener('change',dInfo);$(id).addEventListener('input',dInfo)});
+  $('gear').addEventListener('click',function(){dInfo();dUndoShow()});
+  $('dGo').onclick=function(){
+    var r=dSel();
+    if(!r.ok){toast(r.msg);return}
+    if(!r.list.length){toast('Nessun turno da eliminare in questo periodo');return}
+    var body='Stai per eliminare <b>'+r.pl+(r.pl===1?' turno previsto':' turni previsti')+'</b>'+
+      (r.inc?' e <b>'+r.cf+(r.cf===1?' turno già confermato':' turni già confermati')+'</b>':'')+
+      ' dal <b>'+dFmt(r.f)+'</b> al <b>'+dFmt(r.t)+'</b>.';
+    if(r.inc&&r.cf)body+='<br><span style="color:var(--neg);font-weight:700">I turni confermati escono dal conteggio: le ore lavorate e il saldo cambiano.</span>';
+    body+='<br>Le assenze che hai segnato non vengono toccate.<br>Sei sicuro di voler procedere?';
+    askConfirm({
+      title:'Eliminare i turni?',body:body,yes:'Sì, elimina',no:'No, annulla',
+      onYes:function(){
+        var r2=dSel();if(!r2.ok||!r2.list.length)return;
+        try{localStorage.setItem(dKey(),JSON.stringify({at:new Date().toISOString(),entries:r2.list}))}catch(e){}
+        var ids={};r2.list.forEach(function(e){ids[e.id]=1});
+        S.entries=S.entries.filter(function(e){return !ids[e.id]});
+        save();render();dInfo();dUndoShow();
+        toast('Eliminati '+r2.list.length+(r2.list.length===1?' turno':' turni'));
+      }
+    });
+  };
+  $('dUndo').onclick=function(){
+    var data=null;try{data=JSON.parse(localStorage.getItem(dKey()))}catch(e){}
+    if(!data||!Array.isArray(data.entries)){toast('Niente da annullare');dUndoShow();return}
+    var have={};S.entries.forEach(function(e){have[e.id]=1});
+    var n=0;data.entries.forEach(function(e){if(!have[e.id]){S.entries.push(e);n++}});
+    try{localStorage.removeItem(dKey())}catch(e){}
+    save();render();dInfo();dUndoShow();
+    toast('Ripristinati '+n+(n===1?' turno':' turni'));
+  };
 
   /* --- link diretti per le notifiche (MacroDroid) --- */
   function handleLink(){
