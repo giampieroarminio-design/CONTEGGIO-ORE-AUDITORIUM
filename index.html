@@ -357,9 +357,13 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <p class="hint">Serve a vedere con quali colleghi lavori. Conserva solo gli ultimi 90 giorni: turni e ore non si toccano.</p>
   <label for="sSur">Il tuo cognome nelle convocazioni</label>
   <input type="text" id="sSur" autocapitalize="characters" placeholder="es. ARMINIO">
-  <label for="sOpen">Saldo banca ore di partenza</label>
-  <input type="text" id="sOpen" inputmode="text" placeholder="es. 4:30 oppure -2:15">
-  <p class="hint">È il saldo che avevi prima del primo mese registrato qui. Da lì in poi il riporto si calcola da solo, mese per mese.</p>
+  <label for="sOpen">Residuo banca ore da cedolino</label>
+  <input type="text" id="sOpen" inputmode="text" placeholder="es. -50 oppure 12:30">
+  <div class="two">
+    <div><label for="sFromM" style="margin-top:8px">Dal mese</label><select id="sFromM"></select></div>
+    <div><label for="sFromY" style="margin-top:8px">Anno</label><select id="sFromY"></select></div>
+  </div>
+  <p class="hint">Scrivi le ore in banca come da cedolino (con il segno meno se sei in debito) e il mese da cui parte il conteggio dell'app: è il residuo all'inizio di quel mese. I mesi precedenti non vengono più sommati. Con "—" resta il metodo di prima: il conteggio parte dal primo mese registrato.</p>
 
   <label>Copia di sicurezza</label>
   <p class="hint" style="margin:0 0 8px">I dati stanno solo in questo browser: se cancelli i dati di navigazione o cambi telefono si perdono. Salva ogni tanto un file di backup e conservalo fuori dal telefono (per esempio su Drive).</p>
@@ -555,10 +559,11 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     (S.abs||[]).forEach(function(a){if(a.count&&a.min>0)o[mkey(a.date)]=1});return Object.keys(o).sort();
   }
   function carry(k){
-    var c=+S.settings.opening||0;
-    monthsWithData().forEach(function(m){if(m<k)c+=workedIn(m)+absMonth(m).cr-S.settings.contract});
+    var from=S.settings.openFrom||'',c=+S.settings.opening||0;
+    monthsWithData().forEach(function(m){if(m<k&&(!from||m>=from))c+=workedIn(m)+absMonth(m).cr-S.settings.contract});
     return c;
   }
+  function beforeStart(k){return !!S.settings.openFrom&&k<S.settings.openFrom}
   function shiftMonth(k,n){
     var y=+k.slice(0,4),m=+k.slice(5,7)-1+n;
     y+=Math.floor(m/12);m=((m%12)+12)%12;return y+'-'+pad(m+1);
@@ -570,13 +575,13 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   function render(){renderMain();if(tab==='V')renderV();if(tab==='A')renderA()}
   function renderMain(){
     $('mlabel').textContent=monthLabel(view);
-    var w=workedIn(view),ab=absMonth(view),cr=ab.cr,c=S.settings.contract,bal=w+cr-c,car=carry(view),tot=car+bal;
+    var w=workedIn(view),ab=absMonth(view),cr=ab.cr,c=S.settings.contract,bal=w+cr-c,before=beforeStart(view),car=before?0:carry(view),tot=car+bal;
     var pw=c>0?Math.min(100,w/c*100):0,pc=c>0?Math.min(100-pw,cr/c*100):0,pct=pw+pc;
     var left=c-w-cr;
     $('sum').innerHTML=
       '<div class="big">'+
         '<div><div class="lbl">Ore lavorate</div><div class="val work num">'+fmt(w)+'</div><small>su '+fmt(c)+' da contratto</small></div>'+
-        '<div><div class="lbl">Saldo banca ore</div><div class="val num '+(tot<0?'neg':'pos')+'">'+fmtS(tot)+'</div><small>a fine mese, con il riporto</small></div>'+
+        '<div><div class="lbl">Saldo banca ore</div>'+(before?'<div class="val num" style="color:var(--mute)">–</div><small>il conteggio parte da '+esc(monthLabel(S.settings.openFrom))+'</small>':'<div class="val num '+(tot<0?'neg':'pos')+'">'+fmtS(tot)+'</div><small>a fine mese, con il riporto</small>')+'</div>'+
       '</div>'+
       '<div class="trio" role="group" aria-label="Ore del mese"><div class="w"><span>Lavorate</span><strong>'+fmt(w)+'</strong></div><i aria-hidden="true">+</i>'+
         '<div class="c"><span>Conteggiate</span><strong>'+fmt(cr)+'</strong></div><i aria-hidden="true">=</i>'+
@@ -585,7 +590,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
       '<div class="gl num"><span>'+Math.round(pct)+'% del monte ore</span><span>'+(left>0?'mancano '+fmt(left):'superate di '+fmt(-left))+'</span></div>'+
       '<div class="grid">'+
         '<div><span>Saldo del mese</span><strong class="num">'+fmtS(bal)+'</strong></div>'+
-        '<div><span>Riporto precedente</span><strong class="num">'+fmtS(car)+'</strong></div>'+
+        '<div><span>'+(S.settings.openFrom&&view===S.settings.openFrom?'Residuo di partenza':'Riporto precedente')+'</span><strong class="num">'+(before?'–':fmtS(car))+'</strong></div>'+
         '<div><span>Ore in festività</span><strong class="num">'+fmt(festive(view).hol)+'</strong></div>'+
         '<div><span>Ore di domenica</span><strong class="num sunv">'+fmt(festive(view).sun)+'</strong></div>'+
         '<div class="wide"><span>Assenze concordate (giorni liberi)</span><strong class="num">'+(function(){var a=absMonth(view);return a.n?esc(absTxt(a.by))+(a.cr?' <small style="font-weight:500;color:var(--mute)">· conteggiate come ore: '+fmt(a.cr)+'</small>':''):'nessuna'})()+'</strong></div>'+
@@ -784,7 +789,9 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     var cr0=absMonth(view).cr;
     L.push('','Ore lavorate: '+fmt(w),'Ore da contratto: '+fmt(c));
     if(cr0)L.push('Assenze conteggiate come ore (ferie, malattia, permessi, 104): '+fmt(cr0),'Totale ore del mese (lavorate + conteggiate): '+fmt(w+cr0));
-    L.push('Saldo del mese: '+fmtS(w+cr0-c),'Riporto precedente: '+fmtS(car),'Saldo banca ore: '+fmtS(car+w+cr0-c));
+    L.push('Saldo del mese: '+fmtS(w+cr0-c));
+    if(beforeStart(view))L.push('Banca ore: il conteggio parte da '+monthLabel(S.settings.openFrom));
+    else L.push((S.settings.openFrom&&view===S.settings.openFrom?'Residuo di partenza: ':'Riporto precedente: ')+fmtS(car),'Saldo banca ore: '+fmtS(car+w+cr0-c));
     var ab=absMonth(view);
     if(ab.n){
       L.push('','Giorni di assenza concordata (il giorno libero non conta; le altre assenze contano solo se conteggiate): '+absTxt(ab.by));
@@ -1334,6 +1341,11 @@ function pdfGeometry(opList,OPS){
   $('gear').onclick=function(){
     $('sContract').value=fmt(S.settings.contract);
     $('sOpen').value=fmt(S.settings.opening||0);
+    (function(){
+      var of=S.settings.openFrom||'',yy=of?of.slice(0,4):String(new Date().getFullYear());
+      if(!$('sFromY').querySelector('option[value="'+yy+'"]')){var o=document.createElement('option');o.value=yy;o.textContent=yy;$('sFromY').appendChild(o)}
+      $('sFromM').value=of?of.slice(5,7):'';$('sFromY').value=yy;
+    })();
     $('sSur').value=S.settings.surname||'';
     $('sPat').checked=S.settings.patrono!==false;
     $('sExtra').value=S.settings.extra||'';
@@ -1348,6 +1360,7 @@ function pdfGeometry(opList,OPS){
     S.settings.surname=$('sSur').value.trim().toUpperCase();
     S.settings.patrono=$('sPat').checked;S.settings.extra=$('sExtra').value.trim();hcache={};S.settings.crew=$('sCrew').checked;
     S.settings.contract=c;S.settings.opening=o==null?0:o;
+    var fm=$('sFromM').value,fy=$('sFromY').value;S.settings.openFrom=(fm&&fy)?fy+'-'+fm:'';
     save();$('ovS').classList.remove('on');render();toast('Impostazioni salvate');
   };
   /* --- copia di sicurezza --- */
@@ -1882,8 +1895,15 @@ function pdfGeometry(opList,OPS){
   };
 
   /* --- versione dell'app --- */
-  var APP_VERSION=27,APP_DATE='3 ottobre 2026';
+  (function(){
+    var M=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+    var fm=$('sFromM'),fy=$('sFromY'),y0=new Date().getFullYear();
+    fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
+    var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
+  })();
+  var APP_VERSION=28,APP_DATE='3 ottobre 2026';
   var APP_LOG=[
+    [28,'Residuo della banca ore da cedolino, con il mese da cui parte il conteggio'],
     [27,'Numero di versione e novità nelle impostazioni'],
     [26,'Turni annullati: riconosce i nomi sbarrati e propone di eliminarli'],
     [25,'Date lette dal mese scritto nel PDF, anche per PDF di settimane passate'],
