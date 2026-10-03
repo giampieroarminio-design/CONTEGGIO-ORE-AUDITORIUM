@@ -138,8 +138,10 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .h.vpos{color:var(--pos)}.h.vneg{color:var(--neg)}.h.vzero{color:var(--acc)}
 .vtag{font-weight:700}
 .vtag .vpos{color:var(--pos)}.vtag .vneg{color:var(--neg)}
-.wt.abs{background:var(--acc)}
-.wd .abs{color:var(--acc)}
+.wt.abs{background:var(--sun)}
+.wd .abs{color:var(--sun)}
+.wt.plan{background:var(--acc)}
+.wd .plan{color:var(--acc)}
 .gauge em.cr{position:absolute;top:0;bottom:0;background:var(--cnt);opacity:.7}
 .tsel{display:flex;align-items:center;gap:6px}
 .tsel select{min-width:0;flex:1;padding-left:8px;padding-right:4px}
@@ -185,7 +187,7 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .dn.today{outline:2px solid var(--ink);outline-offset:2px}
 .dn .dts{position:absolute;bottom:3px;display:flex;gap:3px}
 .dn .dts i{display:block;width:5px;height:5px;border-radius:50%}
-.dn .dts .r{background:var(--neg)}.dn .dts .b{background:var(--acc)}
+.dn .dts .r{background:var(--neg)}.dn .dts .b{background:var(--acc)}.dn .dts .o{background:var(--sun)}
 .dn.sel .dts i{background:var(--accInk)}
 .dctr{position:absolute;left:0;right:0;text-align:center;pointer-events:none}
 .dctr .a{font-size:17px;font-weight:800;text-transform:capitalize}
@@ -193,7 +195,11 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .dbt{display:flex;justify-content:center;gap:8px;margin:2px 0 10px}
 .dbt .ibtn{width:44px;height:40px}
 .dbt .btn{min-height:40px}
-.dcard{border:1px solid var(--line);border-radius:14px;background:var(--bg);overflow:hidden}
+.dcard{border:2px solid var(--line);border-radius:14px;background:var(--bg);overflow:hidden}
+.dcard.st-r{border-color:var(--neg)}
+.dcard.st-b{border-color:var(--acc)}
+.dcard.st-g{border-color:var(--pos)}
+.dcard.st-o{border-color:var(--sun)}
 .dcard .dn0{padding:12px 16px;color:var(--mute);font-size:14px}
 .dcard .dnote{padding:8px 16px 0;font-size:13px;font-weight:700}
 .dcard .rw{border-bottom:1px solid var(--line)}
@@ -786,7 +792,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     var any=Object.keys(byd).length>0||Object.keys(abd).length>0,td=todayStr(),ini=['L','M','M','G','V','S','D'],free=[];
     $('wLabel').textContent=dLabel(days[0],{day:'numeric',month:'short'})+' – '+dLabel(days[6],{day:'numeric',month:'short',year:'numeric'});
     $('wStrip').innerHTML=days.map(function(x,k){
-      var busy=!!byd[x],cls=!any?'none':(busy?'busy':(abd[x]?'abs':'free'));
+      var es=byd[x]||[],busy=es.length>0,cls=!any?'none':(busy?(es.some(conf)?'busy':'plan'):(abd[x]?'abs':'free'));
       if(any&&!busy&&!abd[x])free.push(x);
       return '<div class="wt '+cls+(x===td?' today':'')+'"><small>'+ini[k]+'</small><b>'+(+x.slice(8,10))+'</b></div>';
     }).join('');
@@ -797,7 +803,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
       if(!any)r='<span class="r">–</span>';
       else if(!list.length&&abd[x])r='<span class="r abs">'+abd[x].map(function(t){return ABS[t]}).join(', ')+'</span>';
       else if(!list.length)r='<span class="r free">Libero</span>';
-      else r='<span class="r busy">'+list.map(function(e){return e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(e.crew&&e.crew.length?' <button type="button" class="sqb s" data-sq="'+e.id+'">Squadra</button>':'')+(conf(e)?'':' <small>previsto</small>')}).join('<br>')+(abd[x]?'<small style="color:var(--warn);font-weight:700">Hai segnato: '+abd[x].map(function(t){return ABS[t]}).join(', ')+'</small>':'')+'</span>';
+      else r='<span class="r '+(list.some(conf)?'busy':'plan')+'">'+list.map(function(e){return e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(e.crew&&e.crew.length?' <button type="button" class="sqb s" data-sq="'+e.id+'">Squadra</button>':'')+(conf(e)?'':' <small>previsto</small>')}).join('<br>')+(abd[x]?'<small style="color:var(--warn);font-weight:700">Hai segnato: '+abd[x].map(function(t){return ABS[t]}).join(', ')+'</small>':'')+'</span>';
       return '<div class="wd"><span class="n'+(isSun(x)&&!hn?' sunv':'')+'">'+dLabel(x,{weekday:'long'})+' '+(+x.slice(8,10))+sub+'</span>'+r+'</div>';
     }).join('');
     $('wSum').textContent=!any?'Nessun turno in questa settimana: importa le convocazioni per vedere i giorni liberi.':
@@ -1957,8 +1963,10 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=31,APP_DATE='3 ottobre 2026';
+  var APP_VERSION=33,APP_DATE='3 ottobre 2026';
   var APP_LOG=[
+    [33,'Calendario Settimana con gli stessi colori della scheda del giorno'],
+    [32,'Scheda del giorno con bordo colorato: rosso lavoro, blu previsto, verde libero, arancione assenza'],
     [31,'Promemoria settimanale per il backup; tolto l\'avviso giallo su iPhone'],
     [30,'Avvisi rossi e prova di conservazione dei dati per i browser che li cancellano (iPhone)'],
     [29,'Ruota dei giorni nella pagina Turni, con il giorno di oggi in evidenza'],
@@ -1991,10 +1999,15 @@ function pdfGeometry(opList,OPS){
     S.entries.forEach(function(e){(wMap[e.date]=wMap[e.date]||{s:[],a:[]}).s.push(e)});
     (S.abs||[]).forEach(function(a){(wMap[a.date]=wMap[a.date]||{s:[],a:[]}).a.push(a)});
   }
+  function wStatus(m){
+    if(m&&m.s.length)return m.s.some(conf)?'r':'b';
+    if(m&&m.a.length)return 'o';
+    return 'g';
+  }
   function wFill(n,di){
     var d=wDateOf(di),m=wMap[d],dt=new Date(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10),12);
     n.w.textContent=W_LET[dt.getDay()];n.d.textContent=+d.slice(8);
-    n.dts.innerHTML=(m&&m.s.length?'<i class="r"></i>':'')+(m&&m.a.length?'<i class="b"></i>':'');
+    n.dts.innerHTML=(m&&m.s.length?(m.s.some(conf)?'<i class="r"></i>':'<i class="b"></i>'):'')+(m&&m.a.length?'<i class="o"></i>':'');
     n.el.classList.toggle('sunday',dt.getDay()===0||!!holidayName(d));
     n.el.classList.toggle('today',d===todayStr());
   }
@@ -2019,6 +2032,7 @@ function pdfGeometry(opList,OPS){
   }
   function wInfo(){
     var d=wSel,m=wMap[d]||{s:[],a:[]},hn=holidayName(d);
+    $('dwday').className='dcard st-'+wStatus(m);
     $('dwwd').textContent=dLabel(d,{weekday:'long'})+(d===todayStr()?' · oggi':'');
     $('dwdm').textContent=dLabel(d,{day:'numeric',month:'long',year:'numeric'});
     var h='';
