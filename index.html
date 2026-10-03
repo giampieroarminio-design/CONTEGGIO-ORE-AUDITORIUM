@@ -209,6 +209,11 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .stb.warn{background:var(--card);border:2px solid var(--warn)}
 .stb b{font-weight:800}
 .stb button{margin-top:8px;min-height:40px;padding:0 14px;border-radius:10px;border:1px solid currentColor;background:none;color:inherit;font-weight:700}
+.evb{margin-right:14px;min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-weight:600;font-size:14px}
+.rb .evb{width:100%;margin:0;min-height:38px;padding:0 6px}
+.evb.s{min-height:30px;padding:0 9px;font-size:12px;margin:4px 0 0 6px}
+.evb:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.evt{white-space:pre-wrap;font-size:16px;line-height:1.5;margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);overflow-wrap:anywhere}
 .okb{margin-right:14px;min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--acc);background:none;color:var(--acc);font-weight:600;font-size:14px}
 .okb:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .addday{display:block;width:100%;text-align:left;background:none;border:0;color:var(--acc);font-weight:600;font-size:14px;padding:4px 16px 12px;min-height:40px}
@@ -490,6 +495,14 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <div class="act"><button class="btn full" id="qClose">Chiudi</button></div>
 </div></div>
 
+<!-- Evento -->
+<div class="ov" id="ovEv"><div class="sheet">
+  <div id="evHead"></div>
+  <div class="evt" id="evBody"></div>
+  <p class="hint">Testo copiato dalla cella Evento del PDF di convocazione, così com'è scritto.</p>
+  <div class="act"><button class="btn full" id="evClose">Chiudi</button></div>
+</div></div>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -676,7 +689,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
         var right=dm==null?'<span class="h open">in corso</span>':'<span class="h num'+(isSun(e.date)&&!holidayName(e.date)?' sunv':'')+(vi?' '+vi.cls:'')+'">'+fmt(dm)+'</span>';
         return '<div class="rw'+(isP?' plan':'')+'"><button class="row" data-id="'+e.id+'">'+
           '<span class="t num">'+e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(other.length?'<small>'+esc(other.join(' · '))+'</small>':'')+sub.join('')+'</span>'+right+'</button>'+
-          (isP||(e.crew&&e.crew.length)?'<div class="rb">'+(isP?'<button class="okb" data-ok="'+e.id+'">Conferma</button>':'')+(e.crew&&e.crew.length?'<button type="button" class="sqb" data-sq="'+e.id+'">Squadra</button>':'')+'</div>':'')+'</div>';
+          (isP||(e.crew&&e.crew.length)||e.evento?'<div class="rb">'+(isP?'<button class="okb" data-ok="'+e.id+'">Conferma</button>':'')+(e.crew&&e.crew.length?'<button type="button" class="sqb" data-sq="'+e.id+'">Squadra</button>':'')+(e.evento?'<button type="button" class="evb" data-ev="'+e.id+'">Evento</button>':'')+'</div>':'')+'</div>';
       }).join('');
       return '<div class="day"><div class="dh"><span class="d'+(isSun(date)&&!holidayName(date)?' sunv':'')+'">'+wd+' '+d.getDate()+'</span>'+
         (nc>1?'<span class="dt num">Totale '+fmt(tot)+'</span>':'')+'</div>'+rows+
@@ -725,6 +738,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
       place:$('ePlace').value,note:$('eNote').value.trim(),sala:salaName($('eSala').value)};
     if(cur.vnote)rec.vnote=cur.vnote;
     if(cur.crew)rec.crew=cur.crew;
+    if(cur.evento)rec.evento=cur.evento;
     function commit(){
       var i=S.entries.findIndex(function(x){return x.id===rec.id});
       if(i>=0)S.entries[i]=rec;else S.entries.push(rec);
@@ -750,6 +764,8 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   $('list').onclick=function(ev){
     var sq=ev.target.closest('.sqb');
     if(sq){openSquadra(sq.getAttribute('data-sq'));return}
+    var evb=ev.target.closest('.evb');
+    if(evb){openEvento(evb.getAttribute('data-ev'));return}
     var ok=ev.target.closest('.okb');
     if(ok){
       var id=ok.getAttribute('data-ok'),x=S.entries.find(function(q){return q.id===id});
@@ -803,7 +819,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
       if(!any)r='<span class="r">–</span>';
       else if(!list.length&&abd[x])r='<span class="r abs">'+abd[x].map(function(t){return ABS[t]}).join(', ')+'</span>';
       else if(!list.length)r='<span class="r free">Libero</span>';
-      else r='<span class="r '+(list.some(conf)?'busy':'plan')+'">'+list.map(function(e){return e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(e.crew&&e.crew.length?' <button type="button" class="sqb s" data-sq="'+e.id+'">Squadra</button>':'')+(conf(e)?'':' <small>previsto</small>')}).join('<br>')+(abd[x]?'<small style="color:var(--warn);font-weight:700">Hai segnato: '+abd[x].map(function(t){return ABS[t]}).join(', ')+'</small>':'')+'</span>';
+      else r='<span class="r '+(list.some(conf)?'busy':'plan')+'">'+list.map(function(e){return e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(e.crew&&e.crew.length?' <button type="button" class="sqb s" data-sq="'+e.id+'">Squadra</button>':'')+(e.evento?' <button type="button" class="evb s" data-ev="'+e.id+'">Evento</button>':'')+(conf(e)?'':' <small>previsto</small>')}).join('<br>')+(abd[x]?'<small style="color:var(--warn);font-weight:700">Hai segnato: '+abd[x].map(function(t){return ABS[t]}).join(', ')+'</small>':'')+'</span>';
       return '<div class="wd"><span class="n'+(isSun(x)&&!hn?' sunv':'')+'">'+dLabel(x,{weekday:'long'})+' '+(+x.slice(8,10))+sub+'</span>'+r+'</div>';
     }).join('');
     $('wSum').textContent=!any?'Nessun turno in questa settimana: importa le convocazioni per vedere i giorni liberi.':
@@ -900,6 +916,13 @@ function colInfo(items,geo){
   ci.salaL=left;ci.salaR=right;
   if(nc!==null){var nl=null;geo.vx.forEach(function(v){if(v<nc-1&&(nl===null||v>nl))nl=v});if(nl!==null)ci.noteL=nl}
   ci.hy=(geo.hy||[]).filter(function(h){return h.x0<=left+2&&h.x1>=right-2}).map(function(h){return h.y});
+  /* colonna Evento: dal bordo destro della sala fino alla linea verticale successiva */
+  var er=null;
+  geo.vx.forEach(function(v){if(v>right+5&&(er===null||v<er))er=v});
+  if(er!==null){
+    ci.evL=right;ci.evR=er;
+    ci.evLines=(geo.hl||[]).filter(function(h){return h.x0<=right+2&&h.x1>=er-2}).map(function(h){return h.y}).sort(function(a,b){return b-a}).filter(function(v,i,a){return !i||a[i-1]-v>1.2});
+  }
   return ci;
 }
 function parseConvocazioni(items, surname, today, geo){
@@ -995,6 +1018,24 @@ function parseConvocazioni(items, surname, today, geo){
     }
     return false;
   }
+  /* testo della cella Evento che contiene la riga y, riga per riga come nel PDF */
+  function eventAt(y){
+    try{
+      var L=ci.evLines;
+      if(!L||!L.length)return '';
+      var hi=null,lo=null;
+      L.forEach(function(v){if(v>=y&&(hi===null||v<hi))hi=v;if(v<y&&(lo===null||v>lo))lo=v});
+      if(hi===null||lo===null)return '';
+      var parts=items.filter(function(it){return it.x>=ci.evL-1&&it.x<ci.evR&&it.y<hi&&it.y>lo&&String(it.s).trim()})
+        .sort(function(a,b){return b.y-a.y});
+      var rows=[];
+      parts.forEach(function(it){
+        var r=rows[rows.length-1];
+        if(r&&Math.abs(r.y-it.y)<2)r.t.push(it);else rows.push({y:it.y,t:[it]});
+      });
+      return rows.map(function(r){return r.t.sort(function(a,b){return a.x-b.x}).map(function(i){return String(i.s).trim().replace(/\s+/g,' ')}).join(' ')}).join('\n');
+    }catch(e){return ''}
+  }
   seps.sort(function(a,b){return b-a});
   function block(y){var n=0;seps.forEach(function(sy){if(sy>y)n++});return n}
   if(!labels.length)return {shifts:[],error:'layout'};
@@ -1051,7 +1092,7 @@ function parseConvocazioni(items, surname, today, geo){
     function nt(t){var p=t.split(':');return pad(+p[0])+':'+p[1]}
     if(strk){struckOut.push({date:d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),ps:nt(ps),pe:nt(pe)});return}
     if(bad||farWarn)warn++;
-    out.push({date:d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),ps:nt(ps),pe:nt(pe),label:lab?lab.txt:'?',warn:bad||farWarn,sala:salaAt(nm.y),crew:crewAt(nm.y)});
+    out.push({date:d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),ps:nt(ps),pe:nt(pe),label:lab?lab.txt:'?',warn:bad||farWarn,sala:salaAt(nm.y),crew:crewAt(nm.y),evento:eventAt(nm.y)});
   });
   out.sort(function(a,b){return (a.date+a.ps)<(b.date+b.ps)?-1:1});
   var dates=[];
@@ -1060,7 +1101,7 @@ function parseConvocazioni(items, surname, today, geo){
 }
 
 function pdfGeometry(opList,OPS){
-  var color=null,last=null,lastA=null,clip=null,stack=[],hy=[],vx=[],strikes=[],diags=[],ctm=[1,0,0,1,0,0];
+  var color=null,last=null,lastA=null,clip=null,stack=[],hy=[],vx=[],strikes=[],diags=[],hl=[],ctm=[1,0,0,1,0,0];
   function mul(a,b){return [a[0]*b[0]+a[2]*b[1],a[1]*b[0]+a[3]*b[1],a[0]*b[2]+a[2]*b[3],a[1]*b[2]+a[3]*b[3],a[0]*b[4]+a[2]*b[5]+a[4],a[1]*b[4]+a[3]*b[5]+a[5]]}
   function inter(a,b){return !a?b:[Math.max(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[2],b[2]),Math.min(a[3],b[3])]}
   var DRAW={};
@@ -1093,6 +1134,10 @@ function pdfGeometry(opList,OPS){
       if(e[1]<e[0]||e[3]<e[2])continue;
       /* linee sottili e corte, di qualsiasi colore: possibili barrature sul testo */
       if(e[3]-e[2]<=1.6&&e[1]-e[0]>=8&&e[1]-e[0]<=160)strikes.push({x0:e[0],x1:e[1],y:(e[2]+e[3])/2});
+      if(f===OPS.fill&&color&&e[3]-e[2]<=2&&e[1]-e[0]>5){
+        var ck=[];for(var kc in color)ck.push(color[kc]);
+        hl.push({x0:e[0],x1:e[1],y:(e[2]+e[3])/2,th:e[3]-e[2],c:ck.join(',')});
+      }
       if(f!==OPS.fill||!color)continue;
       var black=true;
       for(var k in color)if(color[k]!==0)black=false;
@@ -1102,7 +1147,7 @@ function pdfGeometry(opList,OPS){
     }
   }
   var u=[];vx.sort(function(p,q){return p-q}).forEach(function(v){if(!u.length||v-u[u.length-1]>1)u.push(v)});
-  return {hy:hy,vx:u,strikes:strikes,diags:diags};
+  return {hy:hy,vx:u,strikes:strikes,diags:diags,hl:hl};
 }
 
   var found=[],vlist=[],vInfo={dates:[],older:false,newPdfAt:null,noShifts:false,surname:''},newPdfAt=null;
@@ -1132,9 +1177,9 @@ function pdfGeometry(opList,OPS){
   function analyze(list){
     return list.map(function(t){
       var day=S.entries.filter(function(e){return e.date===t.date});
-      var r={date:t.date,ps:t.ps,pe:t.pe,sala:t.sala||'',warn:!!t.warn,day:day,act:'keep',status:'new',match:null,fill:false,crewNew:false,crew:(S.settings.crew!==false&&t.crew&&t.crew.length)?t.crew:null,absT:((S.abs||[]).filter(function(a){return a.date===t.date})[0]||{}).type||null};
+      var r={date:t.date,ps:t.ps,pe:t.pe,sala:t.sala||'',warn:!!t.warn,day:day,act:'keep',status:'new',match:null,fill:false,crewNew:false,evento:t.evento||'',evNew:false,crew:(S.settings.crew!==false&&t.crew&&t.crew.length)?t.crew:null,absT:((S.abs||[]).filter(function(a){return a.date===t.date})[0]||{}).type||null};
       var same=day.filter(function(e){return sameSlot(e,t)})[0];
-      if(same){r.status='same';r.match=same;r.fill=!!(r.sala&&!same.sala);r.crewNew=!!(r.crew&&(!same.crew||JSON.stringify(same.crew)!==JSON.stringify(r.crew)))}
+      if(same){r.status='same';r.match=same;r.fill=!!(r.sala&&!same.sala);r.crewNew=!!(r.crew&&(!same.crew||JSON.stringify(same.crew)!==JSON.stringify(r.crew)));r.evNew=!!(r.evento&&same.evento!==r.evento)}
       else if(day.length){
         r.status='conflict';
         var bd=1e9;
@@ -1144,14 +1189,14 @@ function pdfGeometry(opList,OPS){
     });
   }
   function counts(){
-    var a=0,u=0,f=0,sf=0,cf=0,dl=0;
+    var a=0,u=0,f=0,sf=0,cf=0,ef=0,dl=0;
     vlist.forEach(function(v){if(v.planned&&v.act==='del')dl++});
     found.forEach(function(r){
       if(r.status==='new'||(r.status==='conflict'&&r.act==='add'))a++;
       else if(r.status==='conflict'&&r.act==='upd')u++;
-      else if(r.status==='same'&&(r.fill||r.crewNew)){f++;if(r.fill)sf++;if(r.crewNew)cf++}
+      else if(r.status==='same'&&(r.fill||r.crewNew||r.evNew)){f++;if(r.fill)sf++;if(r.crewNew)cf++;if(r.evNew)ef++}
     });
-    return {a:a,u:u,f:f,sf:sf,cf:cf,d:dl};
+    return {a:a,u:u,f:f,sf:sf,cf:cf,ef:ef,d:dl};
   }
   function parsePdfDate(x){
     var m=String(x||'').match(/D:(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?(\d{2})?/);
@@ -1205,7 +1250,8 @@ function pdfGeometry(opList,OPS){
       var h='<div class="pi"><span class="num">'+fmtDay(r.date)+' &nbsp; '+r.ps+' – '+r.pe+(r.sala?' <em class="sl">'+esc(r.sala)+'</em>':'')+'</span>';
       if(r.warn)h+='<small class="wr">controlla la data</small>';
       if(r.absT)h+='<small class="wr">Attenzione: hai segnato questo giorno come '+esc(ABS[r.absT])+'</small>';
-      if(r.status==='same')h+='<small class="ok">'+(r.fill&&r.crewNew?'Già presente: aggiungo sala e squadra':(r.fill?'Già presente: aggiungo la sala':(r.crewNew?(r.match.crew?'Già presente: aggiorno la squadra':'Già presente: aggiungo la squadra'):'Già presente, nessuna modifica')))+'</small>';
+      if(r.status==='same')h+='<small class="ok">'+(function(){var pp=[];if(r.fill)pp.push('la sala');if(r.crewNew)pp.push('la squadra');if(r.evNew)pp.push('l\'evento');return pp.length?'Già presente: aggiorno '+pp.join(', '):'Già presente, nessuna modifica'})()+'</small>';
+      if(r.evento&&(r.status!=='same'||r.evNew))h+='<small>Evento letto: '+esc(r.evento.split('\n')[0].slice(0,60))+(r.evento.indexOf('\n')>=0||r.evento.length>60?'…':'')+'</small>';
       if(r.crew&&(r.status!=='same'||r.crewNew)){var nc=r.crew.filter(function(c){return c[0]!=='X'}).length;h+='<small>Squadra letta: '+nc+(nc===1?' collega':' colleghi')+'</small>'}
       else if(r.status==='conflict'){
         h+='<small class="wr">In questo giorno è già indicato: '+r.day.map(slotTxt).join(' · ')+'</small>';
@@ -1223,6 +1269,7 @@ function pdfGeometry(opList,OPS){
     if(c.u)parts.push(c.u===1?'1 aggiornato':c.u+' aggiornati');
     if(c.sf)parts.push(c.sf===1?'sala aggiunta a 1 turno':'sala aggiunta a '+c.sf+' turni');
     if(c.cf)parts.push(c.cf===1?'squadra aggiunta a 1 turno':'squadra aggiunta a '+c.cf+' turni');
+    if(c.ef)parts.push(c.ef===1?'evento aggiunto a 1 turno':'evento aggiunto a '+c.ef+' turni');
     if(parts.length){go.textContent='Importa: '+parts.join(', ');go.style.display=''}
     else go.style.display='none';
   }
@@ -1303,7 +1350,7 @@ function pdfGeometry(opList,OPS){
     function stamp(e){if(newPdfAt)e.pdfAt=newPdfAt}
     function mark(d){if(!first||d<first)first=d}
     function push(r){
-      S.entries.push({id:'t'+Date.now()+Math.floor(Math.random()*100000),date:r.date,start:r.ps,end:r.pe,ps:r.ps,pe:r.pe,sala:r.sala||'',place:'Auditorium',note:'',confirmed:false,crew:r.crew||undefined,pdfAt:newPdfAt||undefined});
+      S.entries.push({id:'t'+Date.now()+Math.floor(Math.random()*100000),date:r.date,start:r.ps,end:r.pe,ps:r.ps,pe:r.pe,sala:r.sala||'',place:'Auditorium',note:'',confirmed:false,crew:r.crew||undefined,evento:r.evento||undefined,pdfAt:newPdfAt||undefined});
       add++;mark(r.date);
     }
     found.forEach(function(r){
@@ -1312,11 +1359,11 @@ function pdfGeometry(opList,OPS){
         push(r);
       }
       else if(r.status==='conflict'&&r.act==='upd'&&r.match){
-        var m=r.match;m.ps=r.ps;m.pe=r.pe;if(r.sala)m.sala=r.sala;if(r.crew)m.crew=r.crew;stamp(m);
+        var m=r.match;m.ps=r.ps;m.pe=r.pe;if(r.sala)m.sala=r.sala;if(r.crew)m.crew=r.crew;if(r.evento)m.evento=r.evento;stamp(m);
         if(!conf(m)){m.start=r.ps;m.end=r.pe}
         upd++;mark(r.date);
       }
-      else if(r.status==='same'&&(r.fill||r.crewNew)&&r.match){if(r.fill)r.match.sala=r.sala;if(r.crewNew)r.match.crew=r.crew;fill++;mark(r.date)}
+      else if(r.status==='same'&&(r.fill||r.crewNew||r.evNew)&&r.match){if(r.fill)r.match.sala=r.sala;if(r.crewNew)r.match.crew=r.crew;if(r.evNew)r.match.evento=r.evento;fill++;mark(r.date)}
       if(r.status==='same'&&r.match)stamp(r.match);
     });
     if(doDel){
@@ -1330,7 +1377,7 @@ function pdfGeometry(opList,OPS){
     }
     pruneCrew();save();if(first){view=mkey(first);weekHint=first}render();
     $('ovI').classList.remove('on');resetPdfUi();
-    toast([add?'Aggiunti '+add:'',upd?'aggiornati '+upd:'',fill?'sala o squadra aggiunta a '+fill:'',skip?'saltati '+skip+' in giorni liberi':'',del?(del===1?'eliminato 1 turno non più presente':'eliminati '+del+' turni non più presenti'):''].filter(Boolean).join(', '));
+    toast([add?'Aggiunti '+add:'',upd?'aggiornati '+upd:'',fill?'sala, squadra o evento aggiunti a '+fill:'',skip?'saltati '+skip+' in giorni liberi':'',del?(del===1?'eliminato 1 turno non più presente':'eliminati '+del+' turni non più presenti'):''].filter(Boolean).join(', '));
   }
   function step2(skipAbs){
     var gone=vlist.filter(function(v){return v.planned&&v.act==='del'});
@@ -1895,8 +1942,20 @@ function pdfGeometry(opList,OPS){
   $('qFp').onclick=function(){qOnly=true;renderSquadra()};
   $('qClose').onclick=function(){$('ovQ').classList.remove('on')};
   $('wList').addEventListener('click',function(ev){
-    var b=ev.target.closest('.sqb');if(b){$('ovW').classList.remove('on');openSquadra(b.getAttribute('data-sq'))}
+    var b=ev.target.closest('.sqb');if(b){$('ovW').classList.remove('on');openSquadra(b.getAttribute('data-sq'));return}
+    var v=ev.target.closest('.evb');if(v){$('ovW').classList.remove('on');openEvento(v.getAttribute('data-ev'))}
   });
+
+  /* --- evento: il testo della cella Evento del PDF --- */
+  function openEvento(id){
+    var e=S.entries.find(function(x){return x.id===id});
+    if(!e||!e.evento)return;
+    $('evHead').innerHTML='<div style="font-size:18px;font-weight:800">Evento'+(e.sala?' · '+esc(e.sala):'')+'</div>'+
+      '<div class="hint" style="margin:2px 0 0">'+esc(dLabel(e.date,{weekday:'long',day:'numeric',month:'long'}))+' · '+esc(e.start)+' – '+esc(e.end||'…')+'</div>';
+    $('evBody').textContent=e.evento;
+    $('ovEv').classList.add('on');
+  }
+  $('evClose').onclick=function(){$('ovEv').classList.remove('on')};
 
   /* --- elimina convocazioni in un periodo --- */
   function dKey(){return KEY+'.eliminazione'}
@@ -1963,8 +2022,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=33,APP_DATE='3 ottobre 2026';
+  var APP_VERSION=34,APP_DATE='3 ottobre 2026';
   var APP_LOG=[
+    [34,'Evento letto dal PDF, con il pulsante Evento accanto a Squadra'],
     [33,'Calendario Settimana con gli stessi colori della scheda del giorno'],
     [32,'Scheda del giorno con bordo colorato: rosso lavoro, blu previsto, verde libero, arancione assenza'],
     [31,'Promemoria settimanale per il backup; tolto l\'avviso giallo su iPhone'],
@@ -2044,7 +2104,7 @@ function pdfGeometry(opList,OPS){
       if(isP)sub.push('<small class="pv">previsto, da confermare</small>');
       var other=[];if(e.place&&e.place!=='Auditorium')other.push(e.place);if(e.note)other.push(e.note);
       var right=dm==null?'<span class="h open">in corso</span>':'<span class="h num'+(vi?' '+vi.cls:'')+'">'+fmt(dm)+'</span>';
-      var acts=(isP?'<button class="okb" data-ok="'+e.id+'">Conferma</button>':'')+(e.crew&&e.crew.length?'<button type="button" class="sqb" data-sq="'+e.id+'">Squadra</button>':'');
+      var acts=(isP?'<button class="okb" data-ok="'+e.id+'">Conferma</button>':'')+(e.crew&&e.crew.length?'<button type="button" class="sqb" data-sq="'+e.id+'">Squadra</button>':'')+(e.evento?'<button type="button" class="evb" data-ev="'+e.id+'">Evento</button>':'');
       h+='<div class="rw'+(isP?' plan':'')+'"><button class="row" data-id="'+e.id+'"><span class="t num">'+e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(other.length?'<small>'+esc(other.join(' · '))+'</small>':'')+sub.join('')+'</span>'+right+'</button>'+(acts?'<div class="rb">'+acts+'</div>':'')+'</div>';
     });
     m.a.forEach(function(a){
