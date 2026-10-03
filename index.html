@@ -840,7 +840,7 @@ function parseConvocazioni(items, surname, today, geo){
     var s=String(it.s).trim();if(!s)return;
     if(it.x<ci.noteL&&/^FACCHINAGGIO\s+DI\s+PARCO/i.test(s))seps.push(it.y);
     var m=s.match(/^(LUN|MAR|MER|GIO|VEN|SAB|DOM)\s+(\d{1,2})$/i);
-    if(m&&it.x<ci.salaL+2)labels.push({wd:GIORNI[m[1].toUpperCase()],dn:+m[2],y:it.y,txt:s.toUpperCase()});
+    if(m&&it.x<ci.salaL+2)labels.push({wd:GIORNI[m[1].toUpperCase()],dn:+m[2],y:it.y,x:it.x,txt:s.toUpperCase()});
     if(it.x<ci.noteL&&re.test(s))names.push(it);
   });
   var cut=[];
@@ -852,6 +852,8 @@ function parseConvocazioni(items, surname, today, geo){
     if(hi===null||lo===null)return '';
     var parts=items.filter(function(it){return it.x>=ci.salaL-1&&it.x<ci.salaR&&it.y<hi&&it.y>lo&&String(it.s).trim()})
       .sort(function(a,b){return b.y-a.y}).map(function(it){return String(it.s).trim()});
+    /* se una riga è solo l'inizio di un'altra (es. "CDJ" e "CDJ sala") tengo quella completa */
+    parts=parts.filter(function(p,i){return !parts.some(function(q,j){return j!==i&&q.length>p.length&&q.toUpperCase().indexOf(p.toUpperCase())===0})});
     return salaName(parts.join(' '));
   }
   var CATS=[['TECNICI LUCE','L'],['MACCHINISTI','M'],['FONICI','F'],['PALCHISTI','P'],['TECNICI VIDEO','V'],['FACCHINI','X']];
@@ -909,10 +911,31 @@ function parseConvocazioni(items, surname, today, geo){
   }
   var DAY=86400000;
   var t0=new Date(today.getFullYear(),today.getMonth(),today.getDate());
-  var first=labels[0],base=null,best=1e18;
-  for(var k=-60;k<=150;k++){
-    var d=new Date(t0.getTime()+k*DAY);
-    if(d.getDate()===first.dn&&d.getDay()===first.wd&&Math.abs(k)<best){best=Math.abs(k);base=d}
+  var first=labels[0],base=null,farWarn=false;
+  /* mese scritto in verticale nella colonna a sinistra dei giorni (es. L U G L I O, SETTEMBRE-OTTOBRE) */
+  var MESI={GENNAIO:1,FEBBRAIO:2,MARZO:3,APRILE:4,MAGGIO:5,GIUGNO:6,LUGLIO:7,AGOSTO:8,SETTEMBRE:9,OTTOBRE:10,NOVEMBRE:11,DICEMBRE:12};
+  var lx=Math.min.apply(null,labels.map(function(l){return l.x}));
+  var mtxt=items.filter(function(i){return /^[A-Z\-]$/.test(String(i.s).trim())&&i.x<lx}).sort(function(a,b){return b.y-a.y}).map(function(i){return String(i.s).trim()}).join('');
+  var months=mtxt.split('-').map(function(n){return MESI[n]}).filter(function(n){return !!n});
+  months.forEach(function(m){
+    if(base)return;
+    var best=1e18;
+    for(var yy=t0.getFullYear()-2;yy<=t0.getFullYear()+2;yy++){
+      var d=new Date(yy,m-1,first.dn);
+      if(d.getMonth()===m-1&&d.getDate()===first.dn&&d.getDay()===first.wd){
+        var diff=Math.abs(d.getTime()-t0.getTime());
+        if(diff<best){best=diff;base=d}
+      }
+    }
+  });
+  if(!base){
+    /* mese non leggibile: cerco il giorno corrispondente più vicino a oggi, in un intervallo largo */
+    var bk=1e18;
+    for(var k=-400;k<=400;k++){
+      var d2=new Date(t0.getTime()+k*DAY);
+      if(d2.getDate()===first.dn&&d2.getDay()===first.wd&&Math.abs(k)<bk){bk=Math.abs(k);base=d2}
+    }
+    if(base&&bk>60)farWarn=true;
   }
   if(!base)return {shifts:[],error:'data'};
   function pad(n){return (n<10?'0':'')+n}
@@ -927,8 +950,8 @@ function parseConvocazioni(items, surname, today, geo){
     if(times.length<2){incomplete++;return}
     var pe=times[0].s.trim(),ps=times[1].s.trim();
     function nt(t){var p=t.split(':');return pad(+p[0])+':'+p[1]}
-    if(bad)warn++;
-    out.push({date:d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),ps:nt(ps),pe:nt(pe),label:lab?lab.txt:'?',warn:bad,sala:salaAt(nm.y),crew:crewAt(nm.y)});
+    if(bad||farWarn)warn++;
+    out.push({date:d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),ps:nt(ps),pe:nt(pe),label:lab?lab.txt:'?',warn:bad||farWarn,sala:salaAt(nm.y),crew:crewAt(nm.y)});
   });
   out.sort(function(a,b){return (a.date+a.ps)<(b.date+b.ps)?-1:1});
   return {shifts:out,incomplete:incomplete,warn:warn};
@@ -1060,7 +1083,7 @@ function pdfGeometry(opList,OPS){
     loadPdfJs().then(function(lib){
       return f.arrayBuffer().then(function(buf){return lib.getDocument({data:new Uint8Array(buf),isEvalSupported:false}).promise});
     }).then(function(doc){
-      var all=[],incomplete=0,layoutErr=false,p=Promise.resolve();
+      var all=[],incomplete=0,layoutErr=false,dataErr=false,p=Promise.resolve();
       for(var n=1;n<=doc.numPages;n++){(function(n){
         p=p.then(function(){return doc.getPage(n)}).then(function(pg){
           return pg.getTextContent().then(function(tc){
@@ -1071,12 +1094,12 @@ function pdfGeometry(opList,OPS){
           var tc=o.tc;
           var items=tc.items.map(function(i){return {s:i.str,x:i.transform[4],y:i.transform[5],w:i.width}});
           var r=parseConvocazioni(items,surname,new Date(),o.geo);
-          if(r.error)layoutErr=true;else{all=all.concat(r.shifts);incomplete+=r.incomplete}
+          if(r.error){layoutErr=true;if(r.error==='data')dataErr=true}else{all=all.concat(r.shifts);incomplete+=r.incomplete}
         });
       })(n)}
       return p.then(function(){
         if(!all.length){
-          iMsg(layoutErr?'Non riconosco la struttura di questo PDF. Usa "incolla il testo" qui sotto, o mandalo a Claude in chat.':'Non ho trovato "'+surname+'" in questo PDF. Controlla il cognome nelle impostazioni.');
+          iMsg(dataErr?'Ho letto il PDF ma non riesco a capire a quali date si riferisce. Usa "incolla il testo" qui sotto, o mandalo a Claude in chat.':layoutErr?'Non riconosco la struttura di questo PDF. Usa "incolla il testo" qui sotto, o mandalo a Claude in chat.':'Non ho trovato "'+surname+'" in questo PDF. Controlla il cognome nelle impostazioni.');
           return;
         }
         showFound(all,incomplete?' Alcune righe erano incomplete e sono state saltate.':'');
