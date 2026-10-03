@@ -173,6 +173,31 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .vn h3{margin:0 0 2px;font-size:15px}
 .vn .pi small.rs{color:var(--warn);font-weight:600}
 .vn .seg button{min-height:38px}
+.whl{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:10px 8px 12px;margin:0 0 14px}
+.dwh{position:relative;width:100%;touch-action:pan-y;cursor:grab;overflow:hidden;outline:none;-webkit-user-select:none;user-select:none}
+.dwh:focus-visible{outline:3px solid var(--acc);outline-offset:2px;border-radius:12px}
+.dn{position:absolute;left:0;top:0;width:40px;height:40px;border-radius:50%;background:var(--bg);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;will-change:transform,opacity}
+.dn .dw{font-size:11px;color:var(--mute);font-weight:600}
+.dn .dd{font-size:15px;font-weight:700;color:var(--ink)}
+.dn.sunday .dd{color:var(--sun)}
+.dn.sel{background:var(--acc);border-color:var(--acc)}
+.dn.sel .dw,.dn.sel .dd{color:var(--accInk)}
+.dn.today{outline:2px solid var(--ink);outline-offset:2px}
+.dn .dts{position:absolute;bottom:3px;display:flex;gap:3px}
+.dn .dts i{display:block;width:5px;height:5px;border-radius:50%}
+.dn .dts .r{background:var(--neg)}.dn .dts .b{background:var(--acc)}
+.dn.sel .dts i{background:var(--accInk)}
+.dctr{position:absolute;left:0;right:0;text-align:center;pointer-events:none}
+.dctr .a{font-size:17px;font-weight:800;text-transform:capitalize}
+.dctr .b{font-size:13px;color:var(--mute)}
+.dbt{display:flex;justify-content:center;gap:8px;margin:2px 0 10px}
+.dbt .ibtn{width:44px;height:40px}
+.dbt .btn{min-height:40px}
+.dcard{border:1px solid var(--line);border-radius:14px;background:var(--bg);overflow:hidden}
+.dcard .dn0{padding:12px 16px;color:var(--mute);font-size:14px}
+.dcard .dnote{padding:8px 16px 0;font-size:13px;font-weight:700}
+.dcard .rw{border-bottom:1px solid var(--line)}
+.dcard .rw:last-of-type{border-bottom:0}
 .okb{margin-right:14px;min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--acc);background:none;color:var(--acc);font-weight:600;font-size:14px}
 .okb:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .addday{display:block;width:100%;text-align:left;background:none;border:0;color:var(--acc);font-weight:600;font-size:14px;padding:4px 16px 12px;min-height:40px}
@@ -220,6 +245,17 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     <button id="tabA" role="tab" aria-selected="false">Assenze</button>
   </div>
   <div id="pgT">
+  <section class="whl" id="dwBox">
+    <div class="dwh" id="dwh" tabindex="0" role="group" aria-label="Ruota dei giorni: trascina o usa le frecce della tastiera per cambiare giorno">
+      <div class="dctr" id="dwctr"><div class="a" id="dwwd"></div><div class="b" id="dwdm"></div></div>
+    </div>
+    <div class="dbt">
+      <button class="ibtn" id="dwP" aria-label="Giorno precedente">‹</button>
+      <button class="btn sm" id="dwT">Oggi</button>
+      <button class="ibtn" id="dwN" aria-label="Giorno successivo">›</button>
+    </div>
+    <div class="dcard" id="dwday"></div>
+  </section>
   <section class="sum" id="sum"></section>
   <div class="tools">
     <button class="btn sm" id="import">Importa convocazioni</button>
@@ -353,6 +389,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <label class="chk"><input type="checkbox" id="sPat"> Conta il 29 giugno (patrono di Roma) come festivo</label>
   <label for="sExtra">Altri giorni festivi (gg/mm, separati da virgola)</label>
   <input type="text" id="sExtra" placeholder="es. 07/10, 15/11">
+  <label class="chk"><input type="checkbox" id="sWheel"> Mostra la ruota dei giorni nella pagina Turni</label>
   <label class="chk"><input type="checkbox" id="sCrew"> Salva la squadra quando importo il PDF</label>
   <p class="hint">Serve a vedere con quali colleghi lavori. Conserva solo gli ultimi 90 giorni: turni e ore non si toccano.</p>
   <label for="sSur">Il tuo cognome nelle convocazioni</label>
@@ -572,7 +609,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     return new Date(+k.slice(0,4),+k.slice(5,7)-1,1).toLocaleDateString('it-IT',{month:'long',year:'numeric'});
   }
 
-  function render(){renderMain();if(tab==='V')renderV();if(tab==='A')renderA()}
+  function render(){renderMain();if(tab==='V')renderV();if(tab==='A')renderA();try{wRefresh()}catch(e){}}
   function renderMain(){
     $('mlabel').textContent=monthLabel(view);
     var w=workedIn(view),ab=absMonth(view),cr=ab.cr,c=S.settings.contract,bal=w+cr-c,before=beforeStart(view),car=before?0:carry(view),tot=car+bal;
@@ -1350,6 +1387,7 @@ function pdfGeometry(opList,OPS){
     $('sPat').checked=S.settings.patrono!==false;
     $('sExtra').value=S.settings.extra||'';
     $('sCrew').checked=S.settings.crew!==false;
+    $('sWheel').checked=S.settings.wheel!==false;
     $('sBk').value='';
     $('ovS').classList.add('on');
   };
@@ -1358,7 +1396,7 @@ function pdfGeometry(opList,OPS){
     var c=parseHM($('sContract').value),o=parseHM($('sOpen').value);
     if(c==null||c<=0){toast('Ore da contratto non valide');return}
     S.settings.surname=$('sSur').value.trim().toUpperCase();
-    S.settings.patrono=$('sPat').checked;S.settings.extra=$('sExtra').value.trim();hcache={};S.settings.crew=$('sCrew').checked;
+    S.settings.patrono=$('sPat').checked;S.settings.extra=$('sExtra').value.trim();hcache={};S.settings.crew=$('sCrew').checked;S.settings.wheel=$('sWheel').checked;wheelApply();
     S.settings.contract=c;S.settings.opening=o==null?0:o;
     var fm=$('sFromM').value,fy=$('sFromY').value;S.settings.openFrom=(fm&&fy)?fy+'-'+fm:'';
     save();$('ovS').classList.remove('on');render();toast('Impostazioni salvate');
@@ -1594,6 +1632,7 @@ function pdfGeometry(opList,OPS){
       $('tab'+x).classList.toggle('on',x===t);$('tab'+x).setAttribute('aria-selected',x===t);
     });
     var bar=document.querySelector('.bar');if(bar)bar.style.display=t==='T'?'':'none';
+    if(t==='T'){try{wLayout();wRefresh()}catch(e){}}
     if(t==='V'){
       if(!vSel.date){
         var td=todayStr(),ds=S.entries.map(function(e){return e.date}).sort(),past=ds.filter(function(d){return d<=td});
@@ -1901,8 +1940,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=28,APP_DATE='3 ottobre 2026';
+  var APP_VERSION=29,APP_DATE='3 ottobre 2026';
   var APP_LOG=[
+    [29,'Ruota dei giorni nella pagina Turni, con il giorno di oggi in evidenza'],
     [28,'Residuo della banca ore da cedolino, con il mese da cui parte il conteggio'],
     [27,'Numero di versione e novità nelle impostazioni'],
     [26,'Turni annullati: riconosce i nomi sbarrati e propone di eliminarli'],
@@ -1917,6 +1957,164 @@ function pdfGeometry(opList,OPS){
     if(v)v.textContent='Versione '+APP_VERSION+' · '+APP_DATE;
     if(l)l.innerHTML=APP_LOG.map(function(x){return '<div style="padding:3px 0"><b>'+x[0]+'</b> · '+esc(x[1])+'</div>'}).join('');
   })();
+
+  /* --- ruota dei giorni --- */
+  var wMap={},wNodes=[],dwh=null,wR=130,wCx=166,wCy=172,wStep=24,wPpd=54,wPos=0,wSel=null,wLast=null,wAnim=null,wUser=false;
+  var wAnc=(function(){var n=new Date();return [n.getFullYear(),n.getMonth()+1,n.getDate()]})();
+  var W_LET=['D','L','M','M','G','V','S'];
+  function wDateOf(di){return ds(wAnc[0],wAnc[1],wAnc[2]+di)}
+  function wDiff(date){
+    var a=new Date(wAnc[0],wAnc[1]-1,wAnc[2],12).getTime(),b=new Date(+date.slice(0,4),+date.slice(5,7)-1,+date.slice(8,10),12).getTime();
+    return Math.round((b-a)/86400000);
+  }
+  function wBuild(){
+    wMap={};
+    S.entries.forEach(function(e){(wMap[e.date]=wMap[e.date]||{s:[],a:[]}).s.push(e)});
+    (S.abs||[]).forEach(function(a){(wMap[a.date]=wMap[a.date]||{s:[],a:[]}).a.push(a)});
+  }
+  function wFill(n,di){
+    var d=wDateOf(di),m=wMap[d],dt=new Date(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10),12);
+    n.w.textContent=W_LET[dt.getDay()];n.d.textContent=+d.slice(8);
+    n.dts.innerHTML=(m&&m.s.length?'<i class="r"></i>':'')+(m&&m.a.length?'<i class="b"></i>':'');
+    n.el.classList.toggle('sunday',dt.getDay()===0||!!holidayName(d));
+    n.el.classList.toggle('today',d===todayStr());
+  }
+  function wInit(){
+    dwh=$('dwh');if(!dwh)return;
+    for(var k=0;k<15;k++){
+      var el=document.createElement('div');el.className='dn';
+      el.innerHTML='<span class="dw"></span><span class="dd"></span><span class="dts"></span>';
+      dwh.appendChild(el);
+      wNodes.push({el:el,w:el.children[0],d:el.children[1],dts:el.children[2],di:null,sel:false,cx:0,cy:0});
+    }
+    wLayout();
+  }
+  function wLayout(){
+    if(!dwh)return;
+    var W=dwh.clientWidth||332;
+    wR=Math.max(90,Math.min(W/2-30,138));wCx=W/2;wCy=wR+42;wPpd=wR*wStep*Math.PI/180;
+    dwh.style.height=(wCy+26)+'px';
+    $('dwctr').style.top=(wCy-wR+50)+'px';
+    wNodes.forEach(function(n){n.di=null});
+    wDraw();
+  }
+  function wInfo(){
+    var d=wSel,m=wMap[d]||{s:[],a:[]},hn=holidayName(d);
+    $('dwwd').textContent=dLabel(d,{weekday:'long'})+(d===todayStr()?' · oggi':'');
+    $('dwdm').textContent=dLabel(d,{day:'numeric',month:'long',year:'numeric'});
+    var h='';
+    if(hn)h+='<div class="dnote sunv">'+esc(hn)+'</div>';
+    var list=m.s.slice().sort(function(a,b){return a.start<b.start?-1:1});
+    list.forEach(function(e){
+      var dm=dur(e),isP=!conf(e),vi=varInfo(e),sub=[];
+      if(vi)sub.push(vi.html);
+      if(isP)sub.push('<small class="pv">previsto, da confermare</small>');
+      var other=[];if(e.place&&e.place!=='Auditorium')other.push(e.place);if(e.note)other.push(e.note);
+      var right=dm==null?'<span class="h open">in corso</span>':'<span class="h num'+(vi?' '+vi.cls:'')+'">'+fmt(dm)+'</span>';
+      var acts=(isP?'<button class="okb" data-ok="'+e.id+'">Conferma</button>':'')+(e.crew&&e.crew.length?'<button type="button" class="sqb" data-sq="'+e.id+'">Squadra</button>':'');
+      h+='<div class="rw'+(isP?' plan':'')+'"><button class="row" data-id="'+e.id+'"><span class="t num">'+e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(other.length?'<small>'+esc(other.join(' · '))+'</small>':'')+sub.join('')+'</span>'+right+'</button>'+(acts?'<div class="rb">'+acts+'</div>':'')+'</div>';
+    });
+    m.a.forEach(function(a){
+      h+='<div class="rw"><span class="t" style="padding:12px 16px;color:var(--acc);font-weight:700;display:block">Assenza concordata · '+esc(ABS[a.type])+(a.count&&a.min?' <small style="font-weight:600;color:var(--mute)">conteggiata '+fmt(a.min)+'</small>':'')+'</span></div>';
+    });
+    if(!list.length&&!m.a.length)h+='<div class="dn0">Nessun turno in questo giorno.</div>';
+    h+='<button class="addday" data-date="'+d+'">+ Aggiungi un turno</button>';
+    $('dwday').innerHTML=h;
+  }
+  function wDraw(){
+    if(!dwh)return;
+    var sel=Math.round(wPos),base=sel-7;
+    for(var k=0;k<wNodes.length;k++){
+      var n=wNodes[k],di=base+k,a=(di-wPos)*wStep,ab=Math.abs(a);
+      if(ab>98){n.el.style.display='none';n.di=null;continue}
+      n.el.style.display='';
+      if(n.di!==di){n.di=di;wFill(n,di)}
+      var rad=a*Math.PI/180,x=wCx+wR*Math.sin(rad),y=wCy-wR*Math.cos(rad);
+      var sc=1+0.45*Math.max(0,1-ab/wStep);
+      n.el.style.transform='translate('+(x-20).toFixed(1)+'px,'+(y-20).toFixed(1)+'px) scale('+sc.toFixed(3)+')';
+      n.el.style.opacity=ab<64?'1':Math.max(0.25,(98-ab)/34).toFixed(2);
+      n.el.style.zIndex=di===sel?3:1;
+      n.cx=x;n.cy=y;
+      var isSel=di===sel;
+      if(n.sel!==isSel){n.sel=isSel;n.el.classList.toggle('sel',isSel)}
+    }
+    if(sel!==wLast){
+      wLast=sel;wSel=wDateOf(sel);wInfo();
+      if(wUser){try{if(navigator.vibrate)navigator.vibrate(6)}catch(e){}}
+      if(mkey(wSel)!==view){view=mkey(wSel);renderMain()}
+    }
+  }
+  function wRefresh(){
+    if(!dwh)return;
+    wBuild();
+    wNodes.forEach(function(n){n.di=null});
+    if(wSel&&mkey(wSel)!==view){
+      var t=todayStr();wGoto(mkey(t)===view?t:view+'-01',true);
+    }
+    wDraw();wInfo();
+  }
+  function wStop(){if(wAnim){cancelAnimationFrame(wAnim);wAnim=null}}
+  function wAnimate(target,dur){
+    wStop();
+    var from=wPos,t0=performance.now();
+    dur=dur||Math.min(700,260+Math.abs(target-from)*70);
+    function f(now){
+      var t=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-t,3);
+      wPos=from+(target-from)*e;wDraw();
+      if(t<1)wAnim=requestAnimationFrame(f);else{wPos=target;wDraw();wAnim=null;wUser=false}
+    }
+    wAnim=requestAnimationFrame(f);
+  }
+  function wGoto(date,instant){
+    var di=wDiff(date);
+    if(instant||Math.abs(di-wPos)>20){wStop();wPos=di;wDraw()}
+    else{wUser=true;wAnimate(di)}
+  }
+  function wheelApply(){
+    var box=$('dwBox');if(!box)return;
+    box.style.display=S.settings.wheel===false?'none':'';
+    if(S.settings.wheel!==false){try{wLayout()}catch(e){}}
+  }
+  var wDrag=false,wSx=0,wSp=0,wLx=0,wLt=0,wVel=0,wMoved=0;
+  function wBind(){
+    if(!dwh)return;
+    dwh.addEventListener('pointerdown',function(e){
+      wStop();wDrag=true;wUser=true;wSx=wLx=e.clientX;wSp=wPos;wLt=performance.now();wVel=0;wMoved=0;
+      try{dwh.setPointerCapture(e.pointerId)}catch(err){}
+      dwh.style.cursor='grabbing';
+    });
+    dwh.addEventListener('pointermove',function(e){
+      if(!wDrag)return;
+      var dx=e.clientX-wSx;wMoved=Math.max(wMoved,Math.abs(dx));
+      wPos=wSp-dx/wPpd;
+      var now=performance.now(),dt=now-wLt;
+      if(dt>0)wVel=wVel*0.6+(-(e.clientX-wLx)/wPpd/dt)*0.4;
+      wLx=e.clientX;wLt=now;wDraw();
+    });
+    function rel(e){
+      if(!wDrag)return;wDrag=false;dwh.style.cursor='grab';
+      if(wMoved<6){
+        var r=dwh.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top,best=null,bd=1e9;
+        wNodes.forEach(function(n){if(n.di===null)return;var d=Math.hypot(n.cx-px,n.cy-py);if(d<bd){bd=d;best=n}});
+        if(best&&bd<32)wAnimate(best.di);else wAnimate(Math.round(wPos),200);
+        return;
+      }
+      var proj=wPos+Math.max(-4,Math.min(4,wVel*220));
+      wAnimate(Math.round(proj));
+    }
+    dwh.addEventListener('pointerup',rel);
+    dwh.addEventListener('pointercancel',rel);
+    dwh.addEventListener('keydown',function(e){
+      if(e.key==='ArrowRight'){wUser=true;wAnimate(Math.round(wPos)+1);e.preventDefault()}
+      if(e.key==='ArrowLeft'){wUser=true;wAnimate(Math.round(wPos)-1);e.preventDefault()}
+    });
+    $('dwP').onclick=function(){wUser=true;wAnimate(Math.round(wPos)-1)};
+    $('dwN').onclick=function(){wUser=true;wAnimate(Math.round(wPos)+1)};
+    $('dwT').onclick=function(){wUser=true;wAnimate(0,Math.min(900,300+Math.abs(wPos)*40))};
+    window.addEventListener('resize',function(){try{wLayout()}catch(e){}});
+    $('dwday').onclick=$('list').onclick;
+  }
+  try{wInit();wBind();wheelApply()}catch(e){var bx=$('dwBox');if(bx)bx.style.display='none'}
 
   /* --- link diretti per le notifiche (MacroDroid) --- */
   function handleLink(){
