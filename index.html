@@ -395,6 +395,11 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <button class="btn neg" id="dGo" style="width:100%">Elimina i turni del periodo</button>
   <button class="btn sm" id="dUndo" style="width:100%;margin-top:8px;display:none">Annulla l'ultima eliminazione</button>
   <p class="credit" style="margin:16px 0 0">Ideata e sviluppata da Giampiero Arminio, con Claude (Anthropic)</p>
+  <p class="credit" id="sVer" style="margin:4px 0 0;font-weight:700"></p>
+  <details style="margin-top:6px">
+    <summary style="justify-content:center;font-size:13px">Novità delle ultime versioni</summary>
+    <div id="sLog" style="font-size:13px;color:var(--mute);line-height:1.45"></div>
+  </details>
   <div class="act">
     <button class="btn" id="sCancel">Chiudi</button>
     <button class="btn pri" id="sSave">Salva impostazioni</button>
@@ -1361,6 +1366,7 @@ function pdfGeometry(opList,OPS){
     var shFiles='no';
     try{var f=new File(['{}'],'x.json',{type:'application/json'});shFiles=(navigator.share&&navigator.canShare&&navigator.canShare({files:[f]}))?'sì':'no'}catch(e){}
     var parts=[
+      'App: versione '+APP_VERSION,
       'Vista: '+(!window.claude?'copia esterna':(isFramed()?'dentro Claude':'pagina web intera')),
       'Permessi Claude: '+(window.claude&&window.claude.use?'presenti':'assenti'),
       'Salvataggio diretto: '+(dl?'sì':'no'),
@@ -1376,7 +1382,7 @@ function pdfGeometry(opList,OPS){
   }
   getDl().then(function(){noDl();diag()});
   function snapshot(){
-    return JSON.stringify(Object.assign({app:'ore-auditorium',exportedAt:new Date().toISOString()},S));
+    return JSON.stringify(Object.assign({app:'ore-auditorium',versione:APP_VERSION,exportedAt:new Date().toISOString()},S));
   }
   function lastBackupTxt(){
     var l=S.settings.lastBackup;
@@ -1874,6 +1880,23 @@ function pdfGeometry(opList,OPS){
     save();render();dInfo();dUndoShow();
     toast('Ripristinati '+n+(n===1?' turno':' turni'));
   };
+
+  /* --- versione dell'app --- */
+  var APP_VERSION=27,APP_DATE='3 ottobre 2026';
+  var APP_LOG=[
+    [27,'Numero di versione e novità nelle impostazioni'],
+    [26,'Turni annullati: riconosce i nomi sbarrati e propone di eliminarli'],
+    [25,'Date lette dal mese scritto nel PDF, anche per PDF di settimane passate'],
+    [24,'Pulsanti Conferma e Squadra uno sotto l\'altro'],
+    [23,'Elimina le convocazioni di un periodo, con conferma e annullamento'],
+    [22,'Squadra: i colleghi della sala per fascia oraria'],
+    [21,'Voce Permessi tra le assenze']
+  ];
+  (function(){
+    var v=$('sVer'),l=$('sLog');
+    if(v)v.textContent='Versione '+APP_VERSION+' · '+APP_DATE;
+    if(l)l.innerHTML=APP_LOG.map(function(x){return '<div style="padding:3px 0"><b>'+x[0]+'</b> · '+esc(x[1])+'</div>'}).join('');
+  })();
 
   /* --- link diretti per le notifiche (MacroDroid) --- */
   function handleLink(){
