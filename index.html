@@ -198,6 +198,11 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .dcard .dnote{padding:8px 16px 0;font-size:13px;font-weight:700}
 .dcard .rw{border-bottom:1px solid var(--line)}
 .dcard .rw:last-of-type{border-bottom:0}
+.stb{border-radius:14px;padding:12px 14px;margin:0 0 12px;font-size:14px;line-height:1.45}
+.stb.err{background:var(--neg);color:var(--accInk);font-weight:600}
+.stb.warn{background:var(--card);border:2px solid var(--warn)}
+.stb b{font-weight:800}
+.stb button{margin-top:8px;min-height:40px;padding:0 14px;border-radius:10px;border:1px solid currentColor;background:none;color:inherit;font-weight:700}
 .okb{margin-right:14px;min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--acc);background:none;color:var(--acc);font-weight:600;font-size:14px}
 .okb:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .addday{display:block;width:100%;text-align:left;background:none;border:0;color:var(--acc);font-weight:600;font-size:14px;padding:4px 16px 12px;min-height:40px}
@@ -239,6 +244,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     <button class="ibtn" id="gear" aria-label="Impostazioni">⚙</button>
   </div>
 
+  <div id="stBanner" role="alert" style="display:none"></div>
   <div class="tabs" role="tablist">
     <button id="tabT" role="tab" aria-selected="true" class="on">Turni</button>
     <button id="tabV" role="tab" aria-selected="false">Variazioni</button>
@@ -411,10 +417,18 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <p class="hint" id="sFileHint" style="display:none"></p>
   <input type="file" id="sIn" accept=".json,application/json,text/plain" hidden>
   <p class="hint" id="sLast"></p>
+  <label class="chk"><input type="checkbox" id="sRem"> Ricordami ogni settimana di fare un backup</label>
   <details>
     <summary>Informazioni tecniche sul salvataggio</summary>
     <p class="hint" id="sDiag" style="margin-top:0"></p>
   </details>
+  <label style="margin-top:14px">Verifica che i dati si conservino</label>
+  <p class="hint" style="margin:0 0 8px">Se i dati spariscono quando chiudi il browser, fai questa prova in due tempi: prima avvia, poi chiudi il browser del tutto e riaprilo, infine controlla.</p>
+  <div class="two">
+    <button class="btn sm" id="pStart">1. Avvia la prova</button>
+    <button class="btn sm" id="pCheck">2. Controlla la prova</button>
+  </div>
+  <p class="hint" id="pMsg" role="status" style="font-weight:600;color:var(--ink)"></p>
   <p class="hint" id="sMsg" role="status" style="color:var(--warn);font-weight:600"></p>
   <button class="btn pri" id="sConfirm" style="width:100%;display:none;margin-top:6px">Sostituisci i dati attuali</button>
   <details>
@@ -1388,6 +1402,7 @@ function pdfGeometry(opList,OPS){
     $('sExtra').value=S.settings.extra||'';
     $('sCrew').checked=S.settings.crew!==false;
     $('sWheel').checked=S.settings.wheel!==false;
+    $('sRem').checked=S.settings.backupRemind!==false;
     $('sBk').value='';
     $('ovS').classList.add('on');
   };
@@ -1396,7 +1411,7 @@ function pdfGeometry(opList,OPS){
     var c=parseHM($('sContract').value),o=parseHM($('sOpen').value);
     if(c==null||c<=0){toast('Ore da contratto non valide');return}
     S.settings.surname=$('sSur').value.trim().toUpperCase();
-    S.settings.patrono=$('sPat').checked;S.settings.extra=$('sExtra').value.trim();hcache={};S.settings.crew=$('sCrew').checked;S.settings.wheel=$('sWheel').checked;wheelApply();
+    S.settings.patrono=$('sPat').checked;S.settings.extra=$('sExtra').value.trim();hcache={};S.settings.crew=$('sCrew').checked;S.settings.wheel=$('sWheel').checked;wheelApply();S.settings.backupRemind=$('sRem').checked;
     S.settings.contract=c;S.settings.opening=o==null?0:o;
     var fm=$('sFromM').value,fy=$('sFromY').value;S.settings.openFrom=(fm&&fy)?fy+'-'+fm:'';
     save();$('ovS').classList.remove('on');render();toast('Impostazioni salvate');
@@ -1418,13 +1433,15 @@ function pdfGeometry(opList,OPS){
     try{var f=new File(['{}'],'x.json',{type:'application/json'});shFiles=(navigator.share&&navigator.canShare&&navigator.canShare({files:[f]}))?'sì':'no'}catch(e){}
     var parts=[
       'App: versione '+APP_VERSION,
+      'Memoria del browser: '+(memR.ok?'funziona':'bloccata'+(memR.err?' ('+memR.err+')':'')),
+      isIOS()?'iPhone: '+(isStandalone()?'aperta dalla schermata Home':'aperta nel browser'):'',
       'Vista: '+(!window.claude?'copia esterna':(isFramed()?'dentro Claude':'pagina web intera')),
       'Permessi Claude: '+(window.claude&&window.claude.use?'presenti':'assenti'),
       'Salvataggio diretto: '+(dl?'sì':'no'),
       'Condivisione file: '+shFiles,
       'Browser: '+(ch?'Chrome '+ch[1]:'altro')+(wv?' (visualizzazione incorporata)':'')+(an?', Android '+an[1]:'')
     ];
-    $('sDiag').textContent=parts.join(' · ');
+    $('sDiag').textContent=parts.filter(Boolean).join(' · ');
   }
   function getDl(){
     if(dl)return Promise.resolve(dl);
@@ -1437,9 +1454,9 @@ function pdfGeometry(opList,OPS){
   }
   function lastBackupTxt(){
     var l=S.settings.lastBackup;
-    if(!l)return 'Non hai ancora salvato nessuna copia su file.';
+    if(!l)return 'Non hai ancora fatto nessuna copia di sicurezza.';
     var d=new Date(l);
-    return 'Ultima copia su file: '+d.toLocaleDateString('it-IT',{day:'numeric',month:'long',year:'numeric'})+'.';
+    return 'Ultima copia di sicurezza: '+d.toLocaleDateString('it-IT',{day:'numeric',month:'long',year:'numeric'})+'.';
   }
   function clearPending(){pendingRestore=null;$('sMsg').textContent='';$('sConfirm').style.display='none'}
   $('gear').addEventListener('click',function(){clearPending();$('sLast').textContent=lastBackupTxt();noDl();diag();if(!dl)getDl().then(function(){noDl();diag()})});
@@ -1525,7 +1542,7 @@ function pdfGeometry(opList,OPS){
     save();clearPending();$('ovS').classList.remove('on');render();toast('Dati ripristinati');
   };
   $('sMake').onclick=function(){
-    $('sBk').value=snapshot();copyFrom($('sBk'));
+    $('sBk').value=snapshot();copyFrom($('sBk'));markBackup();
   };
   $('sRestore').onclick=function(){stageRestore($('sBk').value)};
 
@@ -1940,8 +1957,10 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=29,APP_DATE='3 ottobre 2026';
+  var APP_VERSION=31,APP_DATE='3 ottobre 2026';
   var APP_LOG=[
+    [31,'Promemoria settimanale per il backup; tolto l\'avviso giallo su iPhone'],
+    [30,'Avvisi rossi e prova di conservazione dei dati per i browser che li cancellano (iPhone)'],
     [29,'Ruota dei giorni nella pagina Turni, con il giorno di oggi in evidenza'],
     [28,'Residuo della banca ore da cedolino, con il mese da cui parte il conteggio'],
     [27,'Numero di versione e novità nelle impostazioni'],
@@ -2116,6 +2135,79 @@ function pdfGeometry(opList,OPS){
   }
   try{wInit();wBind();wheelApply()}catch(e){var bx=$('dwBox');if(bx)bx.style.display='none'}
 
+  /* --- memoria del browser: avvisi e prova di conservazione --- */
+  var PKEY=KEY+'.prova';
+  function isIOS(){
+    var ua=navigator.userAgent||'';
+    return /iPad|iPhone|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  }
+  function isStandalone(){
+    return !!navigator.standalone||!!(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);
+  }
+  function memTest(){
+    var r={ok:false,err:''};
+    try{var k=KEY+'.test';localStorage.setItem(k,'1');r.ok=localStorage.getItem(k)==='1';localStorage.removeItem(k)}
+    catch(e){r.err=(e&&e.name)||'errore'}
+    return r;
+  }
+  var memR=memTest();
+  function backupDue(){
+    if(S.settings.backupRemind===false)return false;
+    if(!S.entries.length&&!(S.abs&&S.abs.length))return false;
+    var now=Date.now(),W=7*86400000;
+    var lb=S.settings.lastBackup?new Date(S.settings.lastBackup).getTime():0;
+    var ra=S.settings.remindAt?new Date(S.settings.remindAt).getTime():0;
+    if(lb&&now-lb<W)return false;
+    if(ra&&now-ra<W)return false;
+    return true;
+  }
+  function showBanner(){
+    var b=$('stBanner');if(!b)return;
+    var html='',cls='';
+    if(!memR.ok){
+      cls='err';
+      html='<b>Questo browser non permette di salvare i dati.</b> I turni che inserisci andranno persi alla chiusura. Controlla di non essere in navigazione privata e che nelle impostazioni del browser non sia attivo il blocco di tutti i cookie. In ⚙ trovi una prova per verificare.';
+    }else if(isIOS()&&isFramed()){
+      cls='err';
+      html='<b>Su iPhone questa pagina, aperta da Claude, non conserva i dati.</b> Safari li cancella quando chiudi il browser. Usa l\'indirizzo dell\'app su GitHub.';
+    }else if(backupDue()){
+      cls='warn';
+      var lb=S.settings.lastBackup;
+      html='<b>Hai fatto un backup?</b> '+(lb?'L\'ultima copia dei tuoi dati è del '+esc(new Date(lb).toLocaleDateString('it-IT',{day:'numeric',month:'long'}))+'.':'Non hai ancora fatto nessuna copia dei tuoi dati.')+' Una copia ogni tanto ti evita di perdere i turni se il telefono o il browser li cancellano.<br>'+
+        '<button type="button" id="stGo">Fai il backup</button> <button type="button" id="stLater">Più tardi</button> <button type="button" id="stNever">Non mostrare più</button>';
+      S.settings.remindAt=new Date().toISOString();save();
+    }
+    if(!html){b.style.display='none';return}
+    b.className='stb '+cls;b.innerHTML=html;b.style.display='';
+    var go=$('stGo'),later=$('stLater'),never=$('stNever');
+    if(go)go.onclick=function(){
+      b.style.display='none';$('gear').click();
+      setTimeout(function(){try{$('sFile').scrollIntoView({block:'center'})}catch(e){}},60);
+    };
+    if(later)later.onclick=function(){b.style.display='none'};
+    if(never)never.onclick=function(){S.settings.backupRemind=false;save();b.style.display='none';toast('Promemoria disattivato. Lo riattivi da ⚙')};
+  }
+  function hhmm(iso){var d=new Date(iso);return d.toLocaleDateString('it-IT',{day:'numeric',month:'long'})+' alle '+pad(d.getHours())+':'+pad(d.getMinutes())}
+  $('pStart').onclick=function(){
+    var m=$('pMsg');
+    try{
+      var t=new Date().toISOString();localStorage.setItem(PKEY,t);
+      if(localStorage.getItem(PKEY)!==t)throw new Error('lettura');
+      m.textContent='Prova avviata il '+hhmm(t)+'. Ora chiudi il browser del tutto (su iPhone: scorri via la scheda di Safari), riaprilo, apri ⚙ e tocca "2. Controlla la prova".';
+    }catch(e){
+      m.textContent='Il browser non permette di scrivere i dati: non possono essere conservati. Controlla la navigazione privata e il blocco dei cookie.';
+    }
+  };
+  $('pCheck').onclick=function(){
+    var m=$('pMsg'),v=null;
+    try{v=localStorage.getItem(PKEY)}catch(e){m.textContent='Il browser non permette di leggere i dati salvati.';return}
+    if(v){
+      m.textContent='Prova riuscita: il segno lasciato il '+hhmm(v)+' è ancora qui. Il browser conserva i dati.';
+      try{localStorage.removeItem(PKEY)}catch(e){}
+    }else{
+      m.textContent='Il segno lasciato prima non c\'è più. Se hai avviato la prova prima di chiudere il browser, vuol dire che il browser cancella i dati alla chiusura (di solito per la navigazione privata o per il blocco dei dati dei siti).';
+    }
+  };
   /* --- link diretti per le notifiche (MacroDroid) --- */
   function handleLink(){
     var a='';
@@ -2128,7 +2220,7 @@ function pdfGeometry(opList,OPS){
   load();
   try{pruneCrew()}catch(e){}
   (function(){var ch=false;S.entries.forEach(function(e){if(e.sala){var n=salaName(e.sala);if(n!==e.sala){e.sala=n;ch=true}}});if(ch)save()})();
-  render();handleLink();
+  render();showBanner();handleLink();
 })();
 </script>
 </body>
