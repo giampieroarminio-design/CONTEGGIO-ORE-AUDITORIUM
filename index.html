@@ -181,6 +181,7 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .dn{position:absolute;left:0;top:0;width:40px;height:40px;border-radius:50%;background:var(--bg);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;will-change:transform,opacity}
 .dn .dw{font-size:11px;color:var(--mute);font-weight:600}
 .dn .dd{font-size:15px;font-weight:700;color:var(--ink)}
+.dn.sunday{border:2px solid var(--sun)}
 .dn.sunday .dd{color:var(--sun)}
 .dn.sel{background:var(--acc);border-color:var(--acc)}
 .dn.sel .dw,.dn.sel .dd{color:var(--accInk)}
@@ -353,6 +354,11 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <h2>Importa convocazioni</h2>
   <p class="hint" style="margin:0 0 10px">Scegli il PDF che ricevi ogni settimana: l'app cerca il tuo cognome nella colonna e legge giorno, inizio e fine. Il file resta sul telefono e non viene inviato da nessuna parte.</p>
   <input type="file" id="iFile" accept="application/pdf,.pdf" hidden>
+  <p class="hint" id="iWho" style="color:var(--ink);font-weight:600;margin:0 0 8px"></p>
+  <div class="two" id="iWhoBtn" style="display:none;margin-bottom:8px">
+    <button class="btn sm" id="iWhoYes">Sì, è il mio</button>
+    <button class="btn sm" id="iWhoNo">No, lo cambio</button>
+  </div>
   <button class="btn pri" id="iPick" style="width:100%">Scegli il PDF</button>
   <p class="hint" id="iMsg" role="status"></p>
   <div class="prev" id="iPrev" style="display:none"></div>
@@ -533,7 +539,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
 <script>
 (function(){
   var KEY='oreAuditorium.v1';
-  var S={entries:[],abs:[],cov:[],settings:{contract:169*60,opening:0,surname:'ARMINIO'}};
+  var S={entries:[],abs:[],cov:[],settings:{contract:169*60,opening:0,surname:''}};
   var $=function(id){return document.getElementById(id)};
 
   function load(){
@@ -1306,19 +1312,44 @@ function pdfGeometry(opList,OPS){
   function slotTxt(e){return e.start+' – '+(e.end||'…')+(conf(e)?' (confermato)':' (previsto)')}
 
   /* confronta i turni trovati con quelli già presenti nell'app */
+  function isPl(e){return e.confirmed===false&&!!(e.ps||e.pdfAt)}
+  function followsPlan(m){return m.confirmed!==false&&!!(m.ps&&m.pe)&&m.date>=todayStr()&&m.start===m.ps&&m.end===m.pe}
+  function defAct(m){
+    if(!(m.ps&&m.pe))return 'add';
+    if(m.confirmed===false)return 'keep';
+    return followsPlan(m)?'upd':'keep';
+  }
   function analyze(list){
-    return list.map(function(t){
+    /* turni già in archivio che coincidono con un turno del PDF: a posto, non c'è niente da chiedere */
+    var accounted={};
+    list.forEach(function(t){S.entries.forEach(function(e){if(e.date===t.date&&sameSlot(e,t))accounted[e.id]=1})});
+    var out=list.map(function(t){
       var day=S.entries.filter(function(e){return e.date===t.date});
       var r={date:t.date,ps:t.ps,pe:t.pe,sala:t.sala||'',warn:!!t.warn,day:day,act:'keep',status:'new',match:null,fill:false,crewNew:false,evento:t.evento||'',evNew:false,crewOn:S.settings.crew!==false,others:(S.settings.crew!==false&&t.crew&&t.crew.length)?(t.others||[]):null,crew:(S.settings.crew!==false&&t.crew&&t.crew.length)?t.crew:null,absT:((S.abs||[]).filter(function(a){return a.date===t.date})[0]||{}).type||null};
       var same=day.filter(function(e){return sameSlot(e,t)})[0];
       if(same){r.status='same';r.match=same;r.fill=!!(r.sala&&!same.sala);r.crewNew=!!(r.crewOn&&(JSON.stringify(same.crew||null)!==JSON.stringify(r.crew||null)||JSON.stringify(same.others||null)!==JSON.stringify(r.others||null)));r.evNew=((r.evento||'')!==(same.evento||''))}
-      else if(day.length){
-        r.status='conflict';
-        var bd=1e9;
-        day.forEach(function(e){var d=Math.abs(toM(e.start)-toM(t.ps));if(d<bd){bd=d;r.match=e}});
+      else{
+        /* i turni vecchi ancora "previsti" nello stesso giorno vengono sostituiti da soli (il PDF vale come legge);
+           si chiede cosa fare solo se il turno era già confermato, inserito a mano, o arrivato da un PDF più recente */
+        var C=day.filter(function(e){return !accounted[e.id]&&(!isPl(e)||(newPdfAt&&e.pdfAt&&e.pdfAt>newPdfAt))});
+        if(C.length){
+          r.status='conflict';
+          var bd=1e9;
+          C.forEach(function(e){var d=Math.abs(toM(e.start)-toM(t.ps));if(d<bd){bd=d;r.match=e}});
+          r.act=defAct(r.match);
+        }
       }
       return r;
     });
+    /* più turni del PDF nello stesso giorno di un unico turno già confermato: solo il più vicino lo aggiorna, gli altri sono nuovi */
+    var byM={};
+    out.forEach(function(r){if(r.status==='conflict'&&r.match)(byM[r.match.id]=byM[r.match.id]||[]).push(r)});
+    Object.keys(byM).forEach(function(k){
+      var g=byM[k];if(g.length<2)return;
+      g.sort(function(a,b){return Math.abs(toM(a.match.start)-toM(a.ps))-Math.abs(toM(b.match.start)-toM(b.ps))});
+      g.forEach(function(r,ix){if(ix>0)r.act='add'});
+    });
+    return out;
   }
   function counts(){
     var a=0,u=0,f=0,sf=0,cf=0,ef=0,dl=0,cv=newCov.some(function(d){return !covHas(d)})?1:0;
@@ -1359,16 +1390,14 @@ function pdfGeometry(opList,OPS){
   }
   function vanishedHtml(){
     var h='';
-    if(vInfo.older)h+='<div class="pi"><small class="wr">Attenzione: questo PDF è più vecchio di uno già importato'+(vInfo.newPdfAt?' (generato il '+esc(fmtAt(vInfo.newPdfAt))+')':'')+'. I turni arrivati da una versione più recente non vengono proposti per l\'eliminazione.</small></div>';
+    if(vInfo.older)h+='<div class="pi"><small class="wr">Attenzione: questo PDF è più vecchio di uno già importato'+(vInfo.newPdfAt?' (generato il '+esc(fmtAt(vInfo.newPdfAt))+')':'')+'. I turni arrivati da una versione più recente non vengono toccati.</small></div>';
     if(vInfo.noShifts)h+='<div class="pi"><small class="wr">Il cognome '+esc(vInfo.surname)+' non compare in nessun turno di questo PDF. Se non te lo aspetti, controlla il cognome nelle impostazioni.</small></div>';
     if(!vlist.length)return h;
-    h+='<div class="vn"><h3>Non più nella convocazione</h3><small style="color:var(--mute);font-weight:500">Turni che avevi importato e che nel nuovo PDF non compaiono più (nome sbarrato o casella vuota).</small>';
-    vlist.forEach(function(v,i){
-      var e=v.e;
+    h+='<div class="vn"><h3>Sostituiti dal nuovo PDF</h3><small style="color:var(--mute);font-weight:500">Turni che avevi importato e che nel nuovo PDF non compaiono più, o sono cambiati: il PDF vale come legge, li tolgo da solo.</small>';
+    vlist.forEach(function(v){
+      var e=v.e,rm=v.planned&&!v.newer;
       h+='<div class="pi"><span class="num">'+fmtDay(e.date)+' &nbsp; '+e.start+' – '+e.end+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+'</span>'+
-        '<small class="rs">'+(v.reason==='sbarrato'?'Sbarrato nel PDF':'Non più presente nel PDF')+(v.planned?'':' · già confermato, lo tengo')+(v.newer?' · importato da un PDF più recente':'')+'</small>';
-      if(v.planned)h+='<div class="seg" role="group" aria-label="Cosa fare con questo turno">'+vseg(i,'del','Elimina dall\'app',v.act)+vseg(i,'keep','Tieni',v.act)+'</div>';
-      h+='</div>';
+        '<small class="rs">'+(v.reason==='sbarrato'?'Sbarrato nel PDF':'Non più presente nel PDF')+(rm?' · lo tolgo':(v.planned?'':' · già confermato, lo tengo'))+(v.newer?' · importato da un PDF più recente, lo tengo':'')+'</small></div>';
     });
     return h+'</div>';
   }
@@ -1385,11 +1414,12 @@ function pdfGeometry(opList,OPS){
       if(r.status==='same')h+='<small class="ok">'+(function(){var pp=[];if(r.fill)pp.push('la sala');if(r.crewNew)pp.push('la squadra');if(r.evNew)pp.push('l\'evento');return pp.length?'Già presente: aggiorno '+pp.join(', '):'Già presente, nessuna modifica'})()+'</small>';
       if(r.evento&&(r.status!=='same'||r.evNew))h+='<small>Evento letto: '+esc(r.evento.split('\n')[0].slice(0,60))+(r.evento.indexOf('\n')>=0||r.evento.length>60?'…':'')+'</small>';
       if(r.crew&&(r.status!=='same'||r.crewNew)){var nc=r.crew.filter(function(c){return c[0]!=='X'}).length;h+='<small>Squadra letta: '+nc+(nc===1?' collega':' colleghi')+'</small>'}
-      else if(r.status==='conflict'){
-        h+='<small class="wr">In questo giorno è già indicato: '+r.day.map(slotTxt).join(' · ')+'</small>';
-        h+='<div class="seg" role="group" aria-label="Cosa fare con questa variazione">'+
+      if(r.status==='conflict'){
+        h+='<small class="wr">In questo giorno hai già '+(!(r.match.ps&&r.match.pe)?'un turno inserito a mano':(conf(r.match)?'un turno confermato':'un turno previsto da un PDF più recente'))+': '+slotTxt(r.match)+'</small>';
+        var manual=!(r.match.ps&&r.match.pe);
+        h+='<div class="seg" role="group" aria-label="Cosa fare con questo turno">'+
           seg(i,'keep','Lascia com\'è',r.act)+
-          seg(i,'upd',conf(r.match)?'Aggiorna il previsto':'Cambia orario',r.act)+
+          (manual?'':seg(i,'upd',(conf(r.match)&&!followsPlan(r.match))?'Aggiorna il previsto':'Cambia orario',r.act))+
           seg(i,'add','Aggiungi come altro turno',r.act)+'</div>';
       }
       return h+'</div>';
@@ -1397,7 +1427,7 @@ function pdfGeometry(opList,OPS){
     box.style.display='';
     var c=counts(),parts=[];
     if(c.a)parts.push(c.a===1?'1 nuovo':c.a+' nuovi');
-    if(c.d)parts.push(c.d===1?'1 da eliminare':c.d+' da eliminare');
+    if(c.d)parts.push(c.d===1?'1 vecchio rimosso':c.d+' vecchi rimossi');
     if(c.u)parts.push(c.u===1?'1 aggiornato':c.u+' aggiornati');
     if(c.sf)parts.push(c.sf===1?'sala aggiunta a 1 turno':'sala aggiunta a '+c.sf+' turni');
     if(c.cf)parts.push(c.cf===1?'squadra aggiunta a 1 turno':'squadra aggiunta a '+c.cf+' turni');
@@ -1422,12 +1452,12 @@ function pdfGeometry(opList,OPS){
     var c=counts(),same=found.filter(function(r){return r.status==='same'}).length;
     var conflicts=found.filter(function(r){return r.status==='conflict'}).length;
     var m='Ho trovato '+list.length+(list.length===1?' turno.':' turni.');
-    if(conflicts)m+=' Per '+(conflicts===1?'1 giorno':conflicts+' giorni')+' c\'è già un orario: scegli cosa fare.';
+    if(conflicts)m+=' Per '+(conflicts===1?'1 giorno':conflicts+' giorni')+' hai già un turno: scegli cosa fare.';
     else if(c.a)m+=' Confrontali con il PDF prima di importare.';
     if(found.length&&same===found.length)m+=' Sono tutti già presenti nell\'app.';
     var nd=vlist.filter(function(v){return v.planned&&v.act==='del'}).length;
     if(!list.length)m='Nessun turno a tuo nome in questo PDF.';
-    if(nd)m+=' '+(nd===1?'1 turno non è più':nd+' turni non sono più')+' nella convocazione: scegli se eliminarli.';
+    if(nd)m+=' '+(nd===1?'1 turno vecchio non è più':nd+' turni vecchi non sono più')+' nella convocazione: li rimuovo.';
     iMsg(m+(extra||''));
   }
 
@@ -1438,6 +1468,7 @@ function pdfGeometry(opList,OPS){
     resetPdfUi();iMsg('Lettura del PDF…');
     var surname=S.settings.surname||'';
     if(!surname.trim()){iMsg('Prima scrivi il tuo cognome nelle impostazioni (⚙).');return}
+    if(!S.settings.surnameOk){iMsg('Prima conferma che '+surname+' è il tuo cognome.');return}
     loadPdfJs().then(function(lib){
       return f.arrayBuffer().then(function(buf){return lib.getDocument({data:new Uint8Array(buf),isEvalSupported:false}).promise});
     }).then(function(doc){
@@ -1501,8 +1532,9 @@ function pdfGeometry(opList,OPS){
         push(r);
       }
       else if(r.status==='conflict'&&r.act==='upd'&&r.match){
-        var m=r.match;m.ps=r.ps;m.pe=r.pe;if(r.sala)m.sala=r.sala;setDet(m,r);stamp(m);
-        if(!conf(m)){m.start=r.ps;m.end=r.pe}
+        var m=r.match,follow=!conf(m)||followsPlan(m);
+        m.ps=r.ps;m.pe=r.pe;if(r.sala)m.sala=r.sala;setDet(m,r);stamp(m);
+        if(follow){m.start=r.ps;m.end=r.pe}
         upd++;mark(r.date);
       }
       else if(r.status==='same'&&(r.fill||r.crewNew||r.evNew)&&r.match){if(r.fill)r.match.sala=r.sala;setDet(r.match,r);fill++;mark(r.date)}
@@ -1521,24 +1553,9 @@ function pdfGeometry(opList,OPS){
     if(newCov.length)covAdd(newCov);
     pruneCrew();save();if(first){view=mkey(first);weekHint=first}render();
     $('ovI').classList.remove('on');resetPdfUi();
-    toast([add?'Aggiunti '+add:'',upd?'aggiornati '+upd:'',fill?'sala, squadra o evento aggiunti a '+fill:'',skip?'saltati '+skip+' in giorni liberi':'',del?(del===1?'eliminato 1 turno non più presente':'eliminati '+del+' turni non più presenti'):''].filter(Boolean).join(', '));
+    toast([add?'Aggiunti '+add:'',upd?'aggiornati '+upd:'',fill?'sala, squadra o evento aggiunti a '+fill:'',skip?'saltati '+skip+' in giorni liberi':'',del?(del===1?'rimosso 1 turno non più presente':'rimossi '+del+' turni non più presenti'):''].filter(Boolean).join(', '));
   }
-  function step2(skipAbs){
-    var gone=vlist.filter(function(v){return v.planned&&v.act==='del'});
-    if(gone.length){
-      askConfirm({
-        title:'Eliminare i turni non più presenti?',
-        body:'Questi turni erano stati importati e nel nuovo PDF non compaiono più:'+
-          '<div style="margin:10px 0">'+gone.map(function(v){
-            return '<div class="num" style="padding:4px 0;font-weight:600">'+esc(fmtDay(v.e.date))+' · '+v.e.start+' – '+v.e.end+(v.e.sala?' <small style="font-weight:500;color:var(--mute)">'+esc(v.e.sala)+'</small>':'')+' <small style="font-weight:500;color:var(--warn)">'+(v.reason==='sbarrato'?'sbarrato':'non più presente')+'</small></div>';
-          }).join('')+'</div>Sei sicuro di volerli eliminare? Potrai annullare dalle impostazioni subito dopo.',
-        yes:'Sì, elimina e importa',mid:'Importa senza eliminare',no:'No, torna all\'anteprima',
-        onYes:function(){applyImport(skipAbs,true)},onMid:function(){applyImport(skipAbs,false)}
-      });
-      return;
-    }
-    applyImport(skipAbs,false);
-  }
+  function step2(skipAbs){applyImport(skipAbs,true)}
   $('iPdfGo').onclick=function(){
     var conflicts=found.filter(function(r){return (r.status==='new'||(r.status==='conflict'&&r.act==='add'))&&absOn(r.date).length});
     if(conflicts.length){
@@ -1557,7 +1574,20 @@ function pdfGeometry(opList,OPS){
   };
 
   /* --- importa convocazioni (testo) --- */
-  $('import').onclick=function(){$('iTxt').value='';resetPdfUi();$('ovI').classList.add('on')};
+  function whoShow(){
+    var sur=(S.settings.surname||'').trim(),ok=!!S.settings.surnameOk&&!!sur;
+    $('iWho').innerHTML=!sur?'Prima scrivi il tuo cognome in ⚙: serve per leggere dai PDF i tuoi turni.':
+      (ok?'Cerco i turni di <b>'+esc(sur)+'</b>. Non è il tuo cognome? Cambialo in ⚙.':'Cerco i turni di <b>'+esc(sur)+'</b>. È il tuo cognome?');
+    $('iWhoBtn').style.display=(!ok&&sur)?'':'none';
+    $('iPick').disabled=!ok;$('iPick').style.opacity=ok?'':'.5';
+  }
+  function goSurname(){
+    $('ovI').classList.remove('on');$('gear').click();
+    setTimeout(function(){try{$('sSur').focus();$('sSur').select()}catch(e){}},80);
+  }
+  $('iWhoYes').onclick=function(){S.settings.surnameOk=true;save();whoShow();showBanner()};
+  $('iWhoNo').onclick=goSurname;
+  $('import').onclick=function(){$('iTxt').value='';resetPdfUi();whoShow();$('ovI').classList.add('on')};
   $('iClose').onclick=function(){$('ovI').classList.remove('on')};
   function normT(t){var p=t.split(':');return (+p[0]<10?'0':'')+(+p[0])+':'+p[1]}
   $('iGo').onclick=function(){
@@ -1607,12 +1637,30 @@ function pdfGeometry(opList,OPS){
   $('sSave').onclick=function(){
     var c=parseHM($('sContract').value),o=parseHM($('sOpen').value);
     if(c==null||c<=0){toast('Ore da contratto non valide');return}
-    S.settings.surname=$('sSur').value.trim().toUpperCase();
+    var oldSur=(S.settings.surname||'').trim().toUpperCase();
+    S.settings.surname=$('sSur').value.trim().toUpperCase();S.settings.surnameOk=!!S.settings.surname;
     S.settings.patrono=$('sPat').checked;S.settings.extra=$('sExtra').value.trim();hcache={};S.settings.crew=$('sCrew').checked;S.settings.wheel=$('sWheel').checked;wheelApply();S.settings.backupRemind=$('sRem').checked;
     S.settings.contract=c;S.settings.opening=o==null?0:o;
     var fm=$('sFromM').value,fy=$('sFromY').value;S.settings.openFrom=(fm&&fy)?fy+'-'+fm:'';
     save();$('ovS').classList.remove('on');render();toast('Impostazioni salvate');
+    showBanner();
+    if(oldSur&&S.settings.surname&&oldSur!==S.settings.surname)surnameChanged(oldSur);
   };
+  function surnameChanged(oldSur){
+    var planned=S.entries.filter(function(e){return e.confirmed===false&&(e.ps||e.pdfAt)});
+    if(!planned.length)return;
+    askConfirm({
+      title:'Hai cambiato cognome',
+      body:'Ci sono <b>'+planned.length+(planned.length===1?' turno previsto importato':' turni previsti importati')+'</b> con il cognome precedente (<b>'+esc(oldSur)+'</b>). Vuoi eliminarli? I turni confermati e quelli inseriti a mano non vengono toccati.',
+      yes:'Sì, elimina i previsti',no:'No, tienili',
+      onYes:function(){
+        try{localStorage.setItem(dKey(),JSON.stringify({at:new Date().toISOString(),entries:planned}))}catch(e){}
+        var ids={};planned.forEach(function(e){ids[e.id]=1});
+        S.entries=S.entries.filter(function(e){return !ids[e.id]});
+        save();render();toast('Eliminati '+planned.length+(planned.length===1?' turno':' turni')+' previsti');
+      }
+    });
+  }
   /* --- copia di sicurezza --- */
   var dl=null,pendingRestore=null;
   function isFramed(){try{return window.top!==window.self}catch(e){return true}}
@@ -2032,7 +2080,13 @@ function pdfGeometry(opList,OPS){
   var CATN={L:'Luce',M:'Macchinisti',V:'Video'};
   function nice(n){return String(n).toLowerCase().replace(/(^|[\s'’\-.])([a-zà-ü])/g,function(m,a,b){return a+b.toUpperCase()})}
   function isMe(n){var me=(S.settings.surname||'').trim().toUpperCase();return !!me&&String(n).trim().toUpperCase()===me}
-  function covHas(d){return (S.cov||[]).some(function(r){return d>=r[0]&&d<=r[1]})}
+  var wWeeks={};
+  function isImp(e){return !!(e.pdfAt||e.crew||e.evento||e.others||(e.ps&&e.confirmed===false))}
+  function wWeeksBuild(){
+    wWeeks={};
+    S.entries.forEach(function(e){if(isImp(e))wWeeks[mondayOf(e.date)]=1});
+  }
+  function covHas(d){return (S.cov||[]).some(function(r){return d>=r[0]&&d<=r[1]})||!!wWeeks[mondayOf(d)]}
   function covAdd(dates){
     if(!dates||!dates.length)return;
     var a=dates.slice().sort(),list=(S.cov||[]).concat([[a[0],a[a.length-1]]]).sort(function(x,y){return x[0]<y[0]?-1:(x[0]>y[0]?1:0)}),out=[];
@@ -2099,13 +2153,15 @@ function pdfGeometry(opList,OPS){
     return html;
   }
   function qSummary(o){
-    var mn=1e9,mx=-1,n=0;
-    o.c.forEach(function(c){
-      mn=Math.min(mn,toM(c[2]));mx=Math.max(mx,endM(c[2],c[3]));
-      n+=c[0]==='X'?(+c[1]||0):1;
-    });
+    /* orari calcolati sulle persone con nome: i facchini, indicati solo come numero, allargherebbero la fascia */
+    var named=o.c.filter(function(c){return c[0]!=='X'}),ref=named.length?named:o.c,mn=1e9,mx=-1,nn=0,xx=0;
+    ref.forEach(function(c){mn=Math.min(mn,toM(c[2]));mx=Math.max(mx,endM(c[2],c[3]))});
+    o.c.forEach(function(c){if(c[0]==='X')xx+=(+c[1]||0);else nn++});
     var f=function(m){m=m%1440;return Math.floor(m/60)+':'+pad(m%60)};
-    return f(mn)+' – '+f(mx)+' · '+n+(n===1?' persona':' persone');
+    var t=[];
+    if(nn)t.push(nn+(nn===1?' persona':' persone'));
+    if(xx)t.push(xx+(xx===1?' facchino':' facchini'));
+    return f(mn)+' – '+f(mx)+' · '+t.join(' + ');
   }
   function qSection(label,list,emptyTxt,prefix){
     var h='<div class="qsec"><p class="qsl">'+label+'</p>';
@@ -2264,8 +2320,13 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=37,APP_DATE='4 ottobre 2026';
+  var APP_VERSION=42,APP_DATE='4 ottobre 2026';
   var APP_LOG=[
+    [42,'Il PDF aggiornato sostituisce da solo i turni vecchi ancora previsti; si chiede solo se il turno era già confermato'],
+    [41,'Corretto: quando un turno del PDF cade in un giorno che ha già un turno, l\'anteprima mostra di nuovo la scelta (lascia, cambia, aggiungi)'],
+    [40,'Conferma del cognome prima di importare i PDF; avviso se cambi cognome con turni previsti già importati'],
+    [39,'Prima e dopo di te: orari dell\'evento calcolati sulle persone con nome, facchini a parte'],
+    [38,'Ruota: giorni liberi in verde anche per le settimane già importate, un solo pallino, domenica con cerchio arancione'],
     [37,'Ruota dei giorni: pallino verde per i giorni liberi dopo un PDF, bianco per le assenze'],
     [36,'Squadra con riquadri colorati come nel PDF; Direttori di palco con bordo bianco; X per chiudere Squadra ed Evento'],
     [35,'Squadra per categoria con prima e dopo di te; squadre ed eventi conservati 40 giorni e fuori dal backup; contatore della memoria'],
@@ -2300,6 +2361,7 @@ function pdfGeometry(opList,OPS){
     return Math.round((b-a)/86400000);
   }
   function wBuild(){
+    wWeeksBuild();
     wMap={};
     S.entries.forEach(function(e){(wMap[e.date]=wMap[e.date]||{s:[],a:[]}).s.push(e)});
     (S.abs||[]).forEach(function(a){(wMap[a.date]=wMap[a.date]||{s:[],a:[]}).a.push(a)});
@@ -2313,7 +2375,7 @@ function pdfGeometry(opList,OPS){
     var d=wDateOf(di),m=wMap[d],dt=new Date(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10),12);
     n.w.textContent=W_LET[dt.getDay()];n.d.textContent=+d.slice(8);
     var hasS=!!(m&&m.s.length),hasA=!!(m&&m.a.length);
-    n.dts.innerHTML=(hasS?(m.s.some(conf)?'<i class="r"></i>':'<i class="b"></i>'):'')+(hasA?'<i class="w"></i>':'')+((!hasS&&!hasA&&covHas(d))?'<i class="g"></i>':'');
+    n.dts.innerHTML=hasS?(m.s.some(conf)?'<i class="r"></i>':'<i class="b"></i>'):(hasA?'<i class="w"></i>':(covHas(d)?'<i class="g"></i>':''));
     n.el.classList.toggle('sunday',dt.getDay()===0||!!holidayName(d));
     n.el.classList.toggle('today',d===todayStr());
   }
@@ -2490,6 +2552,11 @@ function pdfGeometry(opList,OPS){
     }else if(isIOS()&&isFramed()){
       cls='err';
       html='<b>Su iPhone questa pagina, aperta da Claude, non conserva i dati.</b> Safari li cancella quando chiudi il browser. Usa l\'indirizzo dell\'app su GitHub.';
+    }else if(!S.settings.surnameOk){
+      cls='warn';
+      var sn=(S.settings.surname||'').trim();
+      html=sn?'<b>Il cognome usato per leggere i PDF è '+esc(sn)+'.</b> È il tuo? Serve per importare i tuoi turni e non quelli di un collega.<br><button type="button" id="stYes">Sì, è il mio</button> <button type="button" id="stNo">No, lo cambio</button>'
+             :'<b>Scrivi il tuo cognome.</b> Serve per leggere dai PDF i tuoi turni.<br><button type="button" id="stNo">Imposta il cognome</button>';
     }else if(backupDue()){
       cls='warn';
       var lb=S.settings.lastBackup;
@@ -2499,6 +2566,9 @@ function pdfGeometry(opList,OPS){
     }
     if(!html){b.style.display='none';return}
     b.className='stb '+cls;b.innerHTML=html;b.style.display='';
+    var yes=$('stYes'),no=$('stNo');
+    if(yes)yes.onclick=function(){S.settings.surnameOk=true;save();b.style.display='none';showBanner()};
+    if(no)no.onclick=function(){$('gear').click();setTimeout(function(){try{$('sSur').focus();$('sSur').select()}catch(e){}},80)};
     var go=$('stGo'),later=$('stLater'),never=$('stNever');
     if(go)go.onclick=function(){
       b.style.display='none';$('gear').click();
