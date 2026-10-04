@@ -186,9 +186,9 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .dn.sel .dw,.dn.sel .dd{color:var(--accInk)}
 .dn.today{outline:2px solid var(--ink);outline-offset:2px}
 .dn .dts{position:absolute;bottom:3px;display:flex;gap:3px}
-.dn .dts i{display:block;width:5px;height:5px;border-radius:50%}
-.dn .dts .r{background:var(--neg)}.dn .dts .b{background:var(--acc)}.dn .dts .o{background:var(--sun)}
-.dn.sel .dts i{background:var(--accInk)}
+.dn .dts i{display:block;width:6px;height:6px;border-radius:50%;box-shadow:0 0 0 1.5px var(--card)}
+.dn .dts .r{background:var(--neg)}.dn .dts .b{background:var(--acc)}.dn .dts .g{background:var(--pos)}.dn .dts .w{background:#fff;border:1px solid var(--mute)}
+.dn.sel .dts i{box-shadow:0 0 0 1.5px #fff}
 .dctr{position:absolute;left:0;right:0;text-align:center;pointer-events:none}
 .dctr .a{font-size:17px;font-weight:800;text-transform:capitalize}
 .dctr .b{font-size:13px;color:var(--mute)}
@@ -533,13 +533,13 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
 <script>
 (function(){
   var KEY='oreAuditorium.v1';
-  var S={entries:[],abs:[],settings:{contract:169*60,opening:0,surname:'ARMINIO'}};
+  var S={entries:[],abs:[],cov:[],settings:{contract:169*60,opening:0,surname:'ARMINIO'}};
   var $=function(id){return document.getElementById(id)};
 
   function load(){
     try{
       var r=localStorage.getItem(KEY);
-      if(r){var p=JSON.parse(r);S.entries=p.entries||[];S.abs=p.abs||[];for(var k in (p.settings||{}))S.settings[k]=p.settings[k];}
+      if(r){var p=JSON.parse(r);S.entries=p.entries||[];S.abs=p.abs||[];S.cov=Array.isArray(p.cov)?p.cov:[];for(var k in (p.settings||{}))S.settings[k]=p.settings[k];}
     }catch(e){}
   }
   function save(){
@@ -1281,7 +1281,7 @@ function pdfGeometry(opList,OPS){
   return {hy:hy,vx:u,strikes:strikes,diags:diags,hl:hl,cf:cf};
 }
 
-  var newCats={};
+  var newCats={},newCov=[];
   var found=[],vlist=[],vInfo={dates:[],older:false,newPdfAt:null,noShifts:false,surname:''},newPdfAt=null;
   function iMsg(t){$('iMsg').textContent=t}
   function loadPdfJs(){
@@ -1321,14 +1321,14 @@ function pdfGeometry(opList,OPS){
     });
   }
   function counts(){
-    var a=0,u=0,f=0,sf=0,cf=0,ef=0,dl=0;
+    var a=0,u=0,f=0,sf=0,cf=0,ef=0,dl=0,cv=newCov.some(function(d){return !covHas(d)})?1:0;
     vlist.forEach(function(v){if(v.planned&&v.act==='del')dl++});
     found.forEach(function(r){
       if(r.status==='new'||(r.status==='conflict'&&r.act==='add'))a++;
       else if(r.status==='conflict'&&r.act==='upd')u++;
       else if(r.status==='same'&&(r.fill||r.crewNew||r.evNew)){f++;if(r.fill)sf++;if(r.crewNew)cf++;if(r.evNew)ef++}
     });
-    return {a:a,u:u,f:f,sf:sf,cf:cf,ef:ef,d:dl};
+    return {a:a,u:u,f:f,sf:sf,cf:cf,ef:ef,d:dl,cv:cv};
   }
   function parsePdfDate(x){
     var m=String(x||'').match(/D:(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?(\d{2})?/);
@@ -1402,6 +1402,7 @@ function pdfGeometry(opList,OPS){
     if(c.sf)parts.push(c.sf===1?'sala aggiunta a 1 turno':'sala aggiunta a '+c.sf+' turni');
     if(c.cf)parts.push(c.cf===1?'squadra aggiunta a 1 turno':'squadra aggiunta a '+c.cf+' turni');
     if(c.ef)parts.push(c.ef===1?'evento aggiunto a 1 turno':'evento aggiunto a '+c.ef+' turni');
+    if(c.cv)parts.push('giorni liberi segnati');
     if(parts.length){go.textContent='Importa: '+parts.join(', ');go.style.display=''}
     else go.style.display='none';
   }
@@ -1412,7 +1413,7 @@ function pdfGeometry(opList,OPS){
     var r=found[+b.getAttribute('data-i')];
     if(r){r.act=b.getAttribute('data-a');renderPrev()}
   };
-  function resetPdfUi(){found=[];vlist=[];vInfo={dates:[],older:false,newPdfAt:null,noShifts:false,surname:''};newPdfAt=null;newCats={};renderPrev();iMsg('')}
+  function resetPdfUi(){found=[];vlist=[];vInfo={dates:[],older:false,newPdfAt:null,noShifts:false,surname:''};newPdfAt=null;newCats={};newCov=[];renderPrev();iMsg('')}
   function showFound(list,extra,meta){
     found=analyze(list);
     vlist=(meta&&meta.dates&&meta.dates.length)?computeVanished(meta.dates,meta.struck,meta.pdfAt):[];
@@ -1458,6 +1459,7 @@ function pdfGeometry(opList,OPS){
       })(n)}
       return p.then(function(){return metaP}).then(function(pdfAt){
         newPdfAt=pdfAt;
+        newCov=dates.slice();
         var meta={dates:dates,struck:struck,pdfAt:pdfAt};
         if(!all.length){
           /* struttura riconosciuta ma nessun turno a tuo nome: può essere che siano stati tolti tutti */
@@ -1516,6 +1518,7 @@ function pdfGeometry(opList,OPS){
       }
     }
     if(Object.keys(newCats).length){var pc=Object.assign({},S.settings.cats||{});Object.keys(newCats).forEach(function(k){pc[k]={c:newCats[k].c||'',l:newCats[k].l||''}});S.settings.cats=pc}
+    if(newCov.length)covAdd(newCov);
     pruneCrew();save();if(first){view=mkey(first);weekHint=first}render();
     $('ovI').classList.remove('on');resetPdfUi();
     toast([add?'Aggiunti '+add:'',upd?'aggiornati '+upd:'',fill?'sala, squadra o evento aggiunti a '+fill:'',skip?'saltati '+skip+' in giorni liberi':'',del?(del===1?'eliminato 1 turno non più presente':'eliminati '+del+' turni non più presenti'):''].filter(Boolean).join(', '));
@@ -1646,6 +1649,7 @@ function pdfGeometry(opList,OPS){
   function snapshot(){
     var c=JSON.parse(JSON.stringify(S));
     c.entries.forEach(function(e){delete e.crew;delete e.evento;delete e.others});
+    delete c.cov;
     return JSON.stringify(Object.assign({app:'ore-auditorium',versione:APP_VERSION,exportedAt:new Date().toISOString()},c));
   }
   function lastBackupTxt(){
@@ -2028,11 +2032,24 @@ function pdfGeometry(opList,OPS){
   var CATN={L:'Luce',M:'Macchinisti',V:'Video'};
   function nice(n){return String(n).toLowerCase().replace(/(^|[\s'’\-.])([a-zà-ü])/g,function(m,a,b){return a+b.toUpperCase()})}
   function isMe(n){var me=(S.settings.surname||'').trim().toUpperCase();return !!me&&String(n).trim().toUpperCase()===me}
+  function covHas(d){return (S.cov||[]).some(function(r){return d>=r[0]&&d<=r[1]})}
+  function covAdd(dates){
+    if(!dates||!dates.length)return;
+    var a=dates.slice().sort(),list=(S.cov||[]).concat([[a[0],a[a.length-1]]]).sort(function(x,y){return x[0]<y[0]?-1:(x[0]>y[0]?1:0)}),out=[];
+    list.forEach(function(r){
+      var l=out[out.length-1];
+      if(l&&addDays(l[1],1)>=r[0]){if(r[1]>l[1])l[1]=r[1]}else out.push([r[0],r[1]]);
+    });
+    S.cov=out;
+  }
   function pruneCrew(){
     var cut=addDays(todayStr(),-40),ch=false;
     S.entries.forEach(function(e){
       if(e.date<cut&&(e.crew||e.evento||e.others)){delete e.crew;delete e.evento;delete e.others;ch=true}
     });
+    var cc=addDays(todayStr(),-60),before=(S.cov||[]).length;
+    S.cov=(S.cov||[]).filter(function(r){return r[1]>=cc});
+    if(S.cov.length!==before)ch=true;
     if(ch)save();
   }
   function endM(ps,pe){var a=toM(ps),b=toM(pe);return b<=a?b+1440:b}
@@ -2155,7 +2172,7 @@ function pdfGeometry(opList,OPS){
   /* --- memoria dell'app --- */
   function kb(n){return (n/1024).toLocaleString('it-IT',{minimumFractionDigits:1,maximumFractionDigits:1})+' KB'}
   function memStats(){
-    var total=JSON.stringify(S).length,det=0;
+    var total=JSON.stringify(S).length,det=JSON.stringify(S.cov||[]).length;
     S.entries.forEach(function(e){
       if(e.crew)det+=JSON.stringify(e.crew).length;
       if(e.evento)det+=JSON.stringify(e.evento).length;
@@ -2169,14 +2186,14 @@ function pdfGeometry(opList,OPS){
   }
   $('gear').addEventListener('click',memShow);
   $('memClear').onclick=function(){
-    var n=S.entries.filter(function(e){return e.crew||e.evento||e.others}).length;
-    if(!n){toast('Non ci sono dettagli dei PDF da cancellare');return}
+    var n=S.entries.filter(function(e){return e.crew||e.evento||e.others}).length,hasCov=!!(S.cov&&S.cov.length);
+    if(!n&&!hasCov){toast('Non ci sono dettagli dei PDF da cancellare');return}
     askConfirm({
       title:'Svuotare i dettagli dei PDF?',
-      body:'Cancella squadre ed eventi di <b>'+n+(n===1?' turno':' turni')+'</b>. Turni, ore, assenze e impostazioni restano. Potrai riottenerli reimportando i PDF.',
+      body:'Cancella squadre ed eventi di <b>'+n+(n===1?' turno':' turni')+'</b> e i giorni liberi segnati sulla ruota. Turni, ore, assenze e impostazioni restano. Potrai riottenerli reimportando i PDF.',
       yes:'Sì, svuota',no:'No, annulla',
       onYes:function(){
-        S.entries.forEach(function(e){delete e.crew;delete e.evento;delete e.others});
+        S.entries.forEach(function(e){delete e.crew;delete e.evento;delete e.others});S.cov=[];
         save();render();memShow();toast('Dettagli dei PDF cancellati');
       }
     });
@@ -2247,8 +2264,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=36,APP_DATE='4 ottobre 2026';
+  var APP_VERSION=37,APP_DATE='4 ottobre 2026';
   var APP_LOG=[
+    [37,'Ruota dei giorni: pallino verde per i giorni liberi dopo un PDF, bianco per le assenze'],
     [36,'Squadra con riquadri colorati come nel PDF; Direttori di palco con bordo bianco; X per chiudere Squadra ed Evento'],
     [35,'Squadra per categoria con prima e dopo di te; squadre ed eventi conservati 40 giorni e fuori dal backup; contatore della memoria'],
     [34,'Evento letto dal PDF, con il pulsante Evento accanto a Squadra'],
@@ -2294,7 +2312,8 @@ function pdfGeometry(opList,OPS){
   function wFill(n,di){
     var d=wDateOf(di),m=wMap[d],dt=new Date(+d.slice(0,4),+d.slice(5,7)-1,+d.slice(8,10),12);
     n.w.textContent=W_LET[dt.getDay()];n.d.textContent=+d.slice(8);
-    n.dts.innerHTML=(m&&m.s.length?(m.s.some(conf)?'<i class="r"></i>':'<i class="b"></i>'):'')+(m&&m.a.length?'<i class="o"></i>':'');
+    var hasS=!!(m&&m.s.length),hasA=!!(m&&m.a.length);
+    n.dts.innerHTML=(hasS?(m.s.some(conf)?'<i class="r"></i>':'<i class="b"></i>'):'')+(hasA?'<i class="w"></i>':'')+((!hasS&&!hasA&&covHas(d))?'<i class="g"></i>':'');
     n.el.classList.toggle('sunday',dt.getDay()===0||!!holidayName(d));
     n.el.classList.toggle('today',d===todayStr());
   }
