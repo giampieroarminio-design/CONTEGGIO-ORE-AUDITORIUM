@@ -214,6 +214,23 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .evb.s{min-height:30px;padding:0 9px;font-size:12px;margin:4px 0 0 6px}
 .evb:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .evt{white-space:pre-wrap;font-size:16px;line-height:1.5;margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);overflow-wrap:anywhere}
+.qc{margin-top:14px}
+.qch{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;font-weight:800;color:var(--mute);text-transform:uppercase;letter-spacing:.4px;padding-bottom:4px;border-bottom:2px solid var(--line)}
+.qp{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:16px}
+.qp:last-child{border-bottom:0}
+.qnm{font-weight:700}
+.qtu{font-size:12px;font-weight:700;color:var(--mute);margin-left:6px}
+.qhr{font-variant-numeric:tabular-nums;text-align:right}
+.qsec{margin-top:16px;border-top:1px solid var(--line);padding-top:10px}
+.qsl{font-size:13px;font-weight:700;color:var(--mute);margin:0 0 6px}
+.qtg{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-height:52px;margin-bottom:6px;font-weight:700;font-size:15px}
+.qtg .q2{display:block;font-size:13px;font-weight:500;color:var(--mute)}
+.qtg i{font-style:normal;font-size:20px;color:var(--mute);transition:transform .2s}
+.qtg[aria-expanded="true"] i{transform:rotate(90deg)}
+.qbd{display:none;padding:0 4px 8px}
+.qbd.on{display:block}
+.qmu{font-size:14px;color:var(--mute);padding:4px 0 6px}
+.qtg:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .okb{margin-right:14px;min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--acc);background:none;color:var(--acc);font-weight:600;font-size:14px}
 .okb:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .addday{display:block;width:100%;text-align:left;background:none;border:0;color:var(--acc);font-weight:600;font-size:14px;padding:4px 16px 12px;min-height:40px}
@@ -408,7 +425,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <input type="text" id="sExtra" placeholder="es. 07/10, 15/11">
   <label class="chk"><input type="checkbox" id="sWheel"> Mostra la ruota dei giorni nella pagina Turni</label>
   <label class="chk"><input type="checkbox" id="sCrew"> Salva la squadra quando importo il PDF</label>
-  <p class="hint">Serve a vedere con quali colleghi lavori. Conserva solo gli ultimi 90 giorni: turni e ore non si toccano.</p>
+  <p class="hint">Serve a vedere con quali colleghi lavori. Squadre ed eventi si conservano solo 40 giorni: turni e ore non si toccano.</p>
   <label for="sSur">Il tuo cognome nelle convocazioni</label>
   <input type="text" id="sSur" autocapitalize="characters" placeholder="es. ARMINIO">
   <label for="sOpen">Residuo banca ore da cedolino</label>
@@ -420,7 +437,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <p class="hint">Scrivi le ore in banca come da cedolino (con il segno meno se sei in debito) e il mese da cui parte il conteggio dell'app: è il residuo all'inizio di quel mese. I mesi precedenti non vengono più sommati. Con "—" resta il metodo di prima: il conteggio parte dal primo mese registrato.</p>
 
   <label>Copia di sicurezza</label>
-  <p class="hint" style="margin:0 0 8px">I dati stanno solo in questo browser: se cancelli i dati di navigazione o cambi telefono si perdono. Salva ogni tanto un file di backup e conservalo fuori dal telefono (per esempio su Drive).</p>
+  <p class="hint" style="margin:0 0 8px">I dati stanno solo in questo browser: se cancelli i dati di navigazione o cambi telefono si perdono. Salva ogni tanto un file di backup e conservalo fuori dal telefono (per esempio su Drive). Il backup contiene turni, ore, assenze e impostazioni; squadre ed eventi si riottengono reimportando i PDF.</p>
   <div class="two">
     <button class="btn sm" id="sFile">Salva file di backup</button>
     <button class="btn sm" id="sLoad">Carica file di backup</button>
@@ -450,6 +467,10 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
       <button class="btn sm" id="sRestore">Ripristina</button>
     </div>
   </details>
+  <label style="margin-top:20px">Memoria dell'app</label>
+  <p class="hint" id="memInfo" style="margin:0 0 6px;color:var(--ink);font-weight:600"></p>
+  <p class="hint" style="margin:0 0 8px">I dettagli dei PDF (squadre ed eventi) servono per la settimana in corso: si cancellano da soli dopo 40 giorni e quando un PDF più recente li sostituisce. Turni, ore, assenze e impostazioni non vengono mai cancellati.</p>
+  <button class="btn sm" id="memClear" style="width:100%">Svuota i dettagli dei PDF</button>
   <label style="margin-top:20px">Elimina convocazioni</label>
   <p class="hint" style="margin:0 0 8px">Cancella i turni <b>previsti</b> (non ancora confermati) in un periodo. I turni già confermati, le ore e il saldo non cambiano, salvo che tu lo chieda qui sotto.</p>
   <div class="two">
@@ -486,10 +507,6 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
 <!-- Squadra -->
 <div class="ov" id="ovQ"><div class="sheet">
   <div id="qHead"></div>
-  <div style="display:flex;gap:8px;margin:10px 0 2px;flex-wrap:wrap">
-    <button class="qchip" id="qAll">Tutte le categorie</button>
-    <button class="qchip" id="qFp">Solo fonici e palchisti</button>
-  </div>
   <div id="qBody"></div>
   <p class="hint" id="qNote"></p>
   <div class="act"><button class="btn full" id="qClose">Chiudi</button></div>
@@ -738,6 +755,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
       place:$('ePlace').value,note:$('eNote').value.trim(),sala:salaName($('eSala').value)};
     if(cur.vnote)rec.vnote=cur.vnote;
     if(cur.crew)rec.crew=cur.crew;
+    if(cur.others)rec.others=cur.others;
     if(cur.evento)rec.evento=cur.evento;
     function commit(){
       var i=S.entries.findIndex(function(x){return x.id===rec.id});
@@ -966,12 +984,8 @@ function parseConvocazioni(items, surname, today, geo){
   function isT(s){return /^\d{1,2}:\d{2}$/.test(String(s).trim())}
   function nt2(t){var p=String(t).trim().split(':');return (p[0].length<2?'0':'')+p[0]+':'+p[1]}
   /* tutte le persone del blocco sala in cui cade la riga y: [categoria, cognome, inizio, fine] */
-  function crewAt(y){
+  function crewIn(hi,lo){
     try{
-      if(!cut.length)return [];
-      var hi=null,lo=null;
-      cut.forEach(function(v){if(v>=y&&(hi===null||v<hi))hi=v;if(v<y&&(lo===null||v>lo))lo=v});
-      if(hi===null||lo===null)return [];
       var H=headers();if(Object.keys(H).length<4)return [];
       var rows=items.filter(function(it){return it.y<hi&&it.y>lo&&it.x<ci.noteL&&it.x>=ci.salaR-2&&String(it.s).trim()});
       var out=[],seen={};
@@ -992,6 +1006,66 @@ function parseConvocazioni(items, surname, today, geo){
         seen[key]=1;out.push(rec);
       });
       return out;
+    }catch(e){return []}
+  }
+  /* persone dello stesso evento del turno (cella Evento), senza uscire dalla sala */
+  function crewAt(y){
+    try{
+      if(!cut.length)return [];
+      var hi=null,lo=null;
+      cut.forEach(function(v){if(v>=y&&(hi===null||v<hi))hi=v;if(v<y&&(lo===null||v>lo))lo=v});
+      if(hi===null||lo===null)return [];
+      var EL=ci.evLines;
+      if(EL&&EL.length){
+        var eh=null,el=null;
+        EL.forEach(function(v){if(v>=y&&(eh===null||v<eh))eh=v;if(v<y&&(el===null||v>el))el=v});
+        if(eh!==null&&el!==null){hi=Math.min(hi,eh);lo=Math.max(lo,el)}
+      }
+      return crewIn(hi,lo);
+    }catch(e){return []}
+  }
+  /* testo della cella Evento che contiene la riga y, riga per riga come nel PDF */
+  function eventIn(hi,lo){
+    try{
+      var parts=items.filter(function(it){return it.x>=ci.evL-1&&it.x<ci.evR&&it.y<hi&&it.y>lo&&String(it.s).trim()})
+        .sort(function(a,b){return b.y-a.y});
+      var rows=[];
+      parts.forEach(function(it){
+        var r=rows[rows.length-1];
+        if(r&&Math.abs(r.y-it.y)<2)r.t.push(it);else rows.push({y:it.y,t:[it]});
+      });
+      return rows.map(function(r){return r.t.sort(function(a,b){return a.x-b.x}).map(function(i){return String(i.s).trim().replace(/\s+/g,' ')}).join(' ')}).join('\n');
+    }catch(e){return ''}
+  }
+  function eventAt(y){
+    try{
+      var L=ci.evLines;
+      if(!L||!L.length)return '';
+      var hi=null,lo=null;
+      L.forEach(function(v){if(v>=y&&(hi===null||v<hi))hi=v;if(v<y&&(lo===null||v>lo))lo=v});
+      if(hi===null||lo===null)return '';
+      return eventIn(hi,lo);
+    }catch(e){return ''}
+  }
+  /* altri eventi della stessa sala nello stesso giorno: [{t:evento, p:'a'(sopra)|'b'(sotto), c:persone}] */
+  function othersAt(y){
+    try{
+      if(!cut.length)return [];
+      var hi=null,lo=null;
+      cut.forEach(function(v){if(v>=y&&(hi===null||v<hi))hi=v;if(v<y&&(lo===null||v>lo))lo=v});
+      if(hi===null||lo===null)return [];
+      var L=ci.evLines;
+      if(!L||!L.length)return [];
+      var inner=L.filter(function(v){return v<hi-0.8&&v>lo+0.8}).sort(function(a,b){return b-a});
+      var bounds=[hi].concat(inner).concat([lo]),res=[];
+      for(var k=0;k<bounds.length-1;k++){
+        var h=bounds[k],l=bounds[k+1];
+        if(y<h&&y>l)continue;
+        var c=crewIn(h,l);
+        if(!c.length)continue;
+        res.push({t:eventIn(h,l).slice(0,300),p:h>y?'a':'b',c:c.slice(0,30)});
+      }
+      return res.slice(0,4);
     }catch(e){return []}
   }
   /* barratura: linea sottile che attraversa il testo a metà altezza per almeno il 70% della sua larghezza */
@@ -1092,7 +1166,7 @@ function parseConvocazioni(items, surname, today, geo){
     function nt(t){var p=t.split(':');return pad(+p[0])+':'+p[1]}
     if(strk){struckOut.push({date:d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),ps:nt(ps),pe:nt(pe)});return}
     if(bad||farWarn)warn++;
-    out.push({date:d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),ps:nt(ps),pe:nt(pe),label:lab?lab.txt:'?',warn:bad||farWarn,sala:salaAt(nm.y),crew:crewAt(nm.y),evento:eventAt(nm.y)});
+    out.push({date:d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),ps:nt(ps),pe:nt(pe),label:lab?lab.txt:'?',warn:bad||farWarn,sala:salaAt(nm.y),crew:crewAt(nm.y),evento:eventAt(nm.y),others:othersAt(nm.y)});
   });
   out.sort(function(a,b){return (a.date+a.ps)<(b.date+b.ps)?-1:1});
   var dates=[];
@@ -1177,9 +1251,9 @@ function pdfGeometry(opList,OPS){
   function analyze(list){
     return list.map(function(t){
       var day=S.entries.filter(function(e){return e.date===t.date});
-      var r={date:t.date,ps:t.ps,pe:t.pe,sala:t.sala||'',warn:!!t.warn,day:day,act:'keep',status:'new',match:null,fill:false,crewNew:false,evento:t.evento||'',evNew:false,crew:(S.settings.crew!==false&&t.crew&&t.crew.length)?t.crew:null,absT:((S.abs||[]).filter(function(a){return a.date===t.date})[0]||{}).type||null};
+      var r={date:t.date,ps:t.ps,pe:t.pe,sala:t.sala||'',warn:!!t.warn,day:day,act:'keep',status:'new',match:null,fill:false,crewNew:false,evento:t.evento||'',evNew:false,crewOn:S.settings.crew!==false,others:(S.settings.crew!==false&&t.crew&&t.crew.length)?(t.others||[]):null,crew:(S.settings.crew!==false&&t.crew&&t.crew.length)?t.crew:null,absT:((S.abs||[]).filter(function(a){return a.date===t.date})[0]||{}).type||null};
       var same=day.filter(function(e){return sameSlot(e,t)})[0];
-      if(same){r.status='same';r.match=same;r.fill=!!(r.sala&&!same.sala);r.crewNew=!!(r.crew&&(!same.crew||JSON.stringify(same.crew)!==JSON.stringify(r.crew)));r.evNew=!!(r.evento&&same.evento!==r.evento)}
+      if(same){r.status='same';r.match=same;r.fill=!!(r.sala&&!same.sala);r.crewNew=!!(r.crewOn&&(JSON.stringify(same.crew||null)!==JSON.stringify(r.crew||null)||JSON.stringify(same.others||null)!==JSON.stringify(r.others||null)));r.evNew=((r.evento||'')!==(same.evento||''))}
       else if(day.length){
         r.status='conflict';
         var bd=1e9;
@@ -1345,12 +1419,19 @@ function pdfGeometry(opList,OPS){
 
   /* applica le scelte */
   /* applica le scelte */
+  function setDet(e,r){
+    if(r.crewOn){
+      if(r.crew&&r.crew.length){e.crew=r.crew;e.others=r.others||[]}
+      else{delete e.crew;delete e.others}
+    }
+    if(r.evento)e.evento=r.evento;else delete e.evento;
+  }
   function applyImport(skipAbs,doDel){
     var add=0,upd=0,fill=0,skip=0,del=0,first=null;
     function stamp(e){if(newPdfAt)e.pdfAt=newPdfAt}
     function mark(d){if(!first||d<first)first=d}
     function push(r){
-      S.entries.push({id:'t'+Date.now()+Math.floor(Math.random()*100000),date:r.date,start:r.ps,end:r.pe,ps:r.ps,pe:r.pe,sala:r.sala||'',place:'Auditorium',note:'',confirmed:false,crew:r.crew||undefined,evento:r.evento||undefined,pdfAt:newPdfAt||undefined});
+      S.entries.push({id:'t'+Date.now()+Math.floor(Math.random()*100000),date:r.date,start:r.ps,end:r.pe,ps:r.ps,pe:r.pe,sala:r.sala||'',place:'Auditorium',note:'',confirmed:false,crew:r.crew||undefined,others:(r.crew&&r.crew.length)?(r.others||[]):undefined,evento:r.evento||undefined,pdfAt:newPdfAt||undefined});
       add++;mark(r.date);
     }
     found.forEach(function(r){
@@ -1359,11 +1440,11 @@ function pdfGeometry(opList,OPS){
         push(r);
       }
       else if(r.status==='conflict'&&r.act==='upd'&&r.match){
-        var m=r.match;m.ps=r.ps;m.pe=r.pe;if(r.sala)m.sala=r.sala;if(r.crew)m.crew=r.crew;if(r.evento)m.evento=r.evento;stamp(m);
+        var m=r.match;m.ps=r.ps;m.pe=r.pe;if(r.sala)m.sala=r.sala;setDet(m,r);stamp(m);
         if(!conf(m)){m.start=r.ps;m.end=r.pe}
         upd++;mark(r.date);
       }
-      else if(r.status==='same'&&(r.fill||r.crewNew||r.evNew)&&r.match){if(r.fill)r.match.sala=r.sala;if(r.crewNew)r.match.crew=r.crew;if(r.evNew)r.match.evento=r.evento;fill++;mark(r.date)}
+      else if(r.status==='same'&&(r.fill||r.crewNew||r.evNew)&&r.match){if(r.fill)r.match.sala=r.sala;setDet(r.match,r);fill++;mark(r.date)}
       if(r.status==='same'&&r.match)stamp(r.match);
     });
     if(doDel){
@@ -1503,7 +1584,9 @@ function pdfGeometry(opList,OPS){
   }
   getDl().then(function(){noDl();diag()});
   function snapshot(){
-    return JSON.stringify(Object.assign({app:'ore-auditorium',versione:APP_VERSION,exportedAt:new Date().toISOString()},S));
+    var c=JSON.parse(JSON.stringify(S));
+    c.entries.forEach(function(e){delete e.crew;delete e.evento;delete e.others});
+    return JSON.stringify(Object.assign({app:'ore-auditorium',versione:APP_VERSION,exportedAt:new Date().toISOString()},c));
   }
   function lastBackupTxt(){
     var l=S.settings.lastBackup;
@@ -1881,13 +1964,15 @@ function pdfGeometry(opList,OPS){
   };
 
   /* --- squadra: colleghi della sala, per fascia oraria --- */
-  var qOnly=false,qId=null;
+  var qId=null;
   var CATN={L:'Luce',M:'Macchinisti',V:'Video'};
   function nice(n){return String(n).toLowerCase().replace(/(^|[\s'’\-.])([a-zà-ü])/g,function(m,a,b){return a+b.toUpperCase()})}
   function isMe(n){var me=(S.settings.surname||'').trim().toUpperCase();return !!me&&String(n).trim().toUpperCase()===me}
   function pruneCrew(){
-    var cut=addDays(todayStr(),-90),ch=false;
-    S.entries.forEach(function(e){if(e.crew&&e.date<cut){delete e.crew;ch=true}});
+    var cut=addDays(todayStr(),-40),ch=false;
+    S.entries.forEach(function(e){
+      if(e.date<cut&&(e.crew||e.evento||e.others)){delete e.crew;delete e.evento;delete e.others;ch=true}
+    });
     if(ch)save();
   }
   function endM(ps,pe){var a=toM(ps),b=toM(pe);return b<=a?b+1440:b}
@@ -1896,50 +1981,87 @@ function pdfGeometry(opList,OPS){
     if(!e||!e.crew||!e.crew.length)return;
     qId=id;renderSquadra();$('ovQ').classList.add('on');
   }
+  var Q_CAT=[['F','Fonici'],['P','Palchisti'],['L','Tecnici luce'],['M','Macchinisti'],['V','Tecnici video'],['X','Facchini']];
+  function qHrs(ranges){return ranges.slice().sort(function(a,b){return toM(a[0])-toM(b[0])}).map(function(q){return q[0].replace(/^0/,'')+' – '+q[1].replace(/^0/,'')}).join(' · ')}
+  function qFirst(ranges){return Math.min.apply(null,ranges.map(function(q){return toM(q[0])}))}
+  function crewHtml(crew){
+    var by={};
+    crew.forEach(function(c){
+      var cat=by[c[0]]||(by[c[0]]={});
+      if(c[0]==='X'){
+        var k=c[2]+'|'+c[3],r=cat[k]||(cat[k]={n:0,ranges:[[c[2],c[3]]]});
+        r.n+=(+c[1]||0);
+      }else{
+        var p=cat[c[1]]||(cat[c[1]]={name:c[1],ranges:[]});
+        if(!p.ranges.some(function(q){return q[0]===c[2]&&q[1]===c[3]}))p.ranges.push([c[2],c[3]]);
+      }
+    });
+    var html='';
+    Q_CAT.forEach(function(c){
+      var cat=by[c[0]];if(!cat)return;
+      var rows=Object.keys(cat).map(function(k){return cat[k]});
+      if(!rows.length)return;
+      rows.sort(function(a,b){return (qFirst(a.ranges)-qFirst(b.ranges))||String(a.name||'').localeCompare(String(b.name||''))});
+      var total=c[0]==='X'?rows.reduce(function(t,r){return t+r.n},0):rows.length;
+      html+='<div class="qc"><div class="qch"><span>'+c[1]+'</span><span>'+total+'</span></div>'+rows.map(function(r){
+        if(c[0]==='X')return '<div class="qp"><span class="qnm">'+r.n+(r.n===1?' persona':' persone')+'</span><span class="qhr">'+qHrs(r.ranges)+'</span></div>';
+        return '<div class="qp"><span class="qnm">'+(isMe(r.name)?esc(nice(r.name))+'<span class="qtu">tu</span>':esc(nice(r.name)))+'</span><span class="qhr">'+qHrs(r.ranges)+'</span></div>';
+      }).join('')+'</div>';
+    });
+    return html;
+  }
+  function qSummary(o){
+    var mn=1e9,mx=-1,n=0;
+    o.c.forEach(function(c){
+      mn=Math.min(mn,toM(c[2]));mx=Math.max(mx,endM(c[2],c[3]));
+      n+=c[0]==='X'?(+c[1]||0):1;
+    });
+    var f=function(m){m=m%1440;return Math.floor(m/60)+':'+pad(m%60)};
+    return f(mn)+' – '+f(mx)+' · '+n+(n===1?' persona':' persone');
+  }
+  function qSection(label,list,emptyTxt,prefix){
+    var h='<div class="qsec"><p class="qsl">'+label+'</p>';
+    if(!list.length)return h+'<div class="qmu">'+emptyTxt+'</div></div>';
+    list.forEach(function(o,i){
+      var title=(o.t||'').split('\n').map(function(x){return x.trim()}).filter(Boolean).join(' · ')||'Evento non indicato';
+      if(title.length>90)title=title.slice(0,90)+'…';
+      h+='<button type="button" class="qtg" data-q="'+prefix+i+'" aria-expanded="false"><span>'+esc(title)+'<span class="q2">'+qSummary(o)+'</span></span><i aria-hidden="true">›</i></button>'+
+         '<div class="qbd" id="qb-'+prefix+i+'">'+crewHtml(o.c)+'</div>';
+    });
+    return h+'</div>';
+  }
   function renderSquadra(){
     var e=S.entries.find(function(x){return x.id===qId});if(!e)return;
-    var slots={};
-    e.crew.forEach(function(c){
-      var k=c[2]+'|'+c[3],sl=slots[k]||(slots[k]={ps:c[2],pe:c[3],F:[],P:[],O:{},X:0});
-      if(c[0]==='F'){if(sl.F.indexOf(c[1])<0)sl.F.push(c[1])}
-      else if(c[0]==='P'){if(sl.P.indexOf(c[1])<0)sl.P.push(c[1])}
-      else if(c[0]==='X')sl.X+=(+c[1]||0);
-      else{var a=sl.O[c[0]]||(sl.O[c[0]]=[]);if(a.indexOf(c[1])<0)a.push(c[1])}
-    });
-    var list=Object.keys(slots).map(function(k){return slots[k]}).sort(function(a,b){return (toM(a.ps)-toM(b.ps))||(endM(a.ps,a.pe)-endM(b.ps,b.pe))});
+    var ev=(e.evento||'').split('\n').map(function(x){return x.trim()}).filter(Boolean).join(' · ');
     $('qHead').innerHTML='<div style="font-size:18px;font-weight:800">Squadra'+(e.sala?' · '+esc(e.sala):'')+'</div>'+
-      '<div class="hint" style="margin:2px 0 0">'+esc(dLabel(e.date,{weekday:'long',day:'numeric',month:'long'}))+' · tutti i cognomi della sala, per fascia oraria</div>';
-    function chips(arr,cls){
-      var a=arr.slice().sort(function(x,y){return (isMe(y)?1:0)-(isMe(x)?1:0)});
-      return a.map(function(n){return '<span class="qn '+cls+'">'+(isMe(n)?'tu':esc(nice(n)))+'</span>'}).join('');
+      '<div class="hint" style="margin:2px 0 0">'+esc(dLabel(e.date,{weekday:'long',day:'numeric',month:'long'}))+' · '+esc(e.start)+' – '+esc(e.end||'…')+'</div>'+
+      (ev?'<div class="hint" style="margin:2px 0 0;font-weight:700;color:var(--ink)">'+esc(ev.length>110?ev.slice(0,110)+'…':ev)+'</div>':'');
+    var html=crewHtml(e.crew)||'<p class="hint" style="padding:12px 0">Nessuna persona letta per questo evento.</p>';
+    if(Array.isArray(e.others)){
+      var us=toM(e.ps||e.start),before=[],after=[];
+      /* orario di riferimento di un evento: mediana degli inizi delle persone con nome (i facchini, indicati solo come numero, non contano) */
+      function ref(o){
+        var l=o.c.filter(function(c){return c[0]!=='X'}).map(function(c){return toM(c[2])});
+        if(!l.length)l=o.c.map(function(c){return toM(c[2])});
+        l.sort(function(x,y){return x-y});
+        return l[Math.floor((l.length-1)/2)];
+      }
+      e.others.slice().sort(function(a,b){return ref(a)-ref(b)}).forEach(function(o){
+        var f=ref(o);
+        if(f<us||(f===us&&o.p==='a'))before.push(o);else after.push(o);
+      });
+      html+=qSection('Nella stessa sala, prima di te',before,'Nessun altro evento in questa sala prima del tuo turno.','b');
+      html+=qSection('Nella stessa sala, dopo di te',after,'Nessun altro evento in questa sala dopo il tuo turno.','a');
     }
-    var html='',shown=0;
-    list.forEach(function(sl){
-      var hasFP=sl.F.length||sl.P.length;
-      if(qOnly&&!hasFP)return;
-      shown++;
-      var mine=(sl.ps===e.ps&&sl.pe===e.pe)||(sl.ps===e.start&&sl.pe===e.end);
-      html+='<div class="qs"><div class="qh"><span class="qt">'+sl.ps.replace(/^0/,'')+' – '+sl.pe.replace(/^0/,'')+'</span>'+(mine?'<span class="qmine">il tuo turno</span>':'')+'</div>';
-      if(hasFP){
-        html+='<div class="qfp">';
-        if(sl.F.length)html+='<div class="qfl"><span class="qrl">Fonici</span><span>'+chips(sl.F,'f')+'</span></div>';
-        if(sl.P.length)html+='<div class="qfl"><span class="qrl">Palchisti</span><span>'+chips(sl.P,'p')+'</span></div>';
-        html+='</div>';
-      }
-      if(!qOnly){
-        var o=[];
-        ['L','M','V'].forEach(function(k){if(sl.O[k])o.push(CATN[k]+': '+sl.O[k].map(nice).map(esc).join(', '))});
-        if(sl.X)o.push('Facchini: '+sl.X+(sl.X===1?' persona':' persone'));
-        if(o.length)html+='<div class="qot">'+o.join(' · ')+'</div>';
-      }
-      html+='</div>';
-    });
-    $('qBody').innerHTML=shown?html:'<p class="hint" style="padding:12px 0">Nessun fonico o palchista in questa sala.</p>';
-    $('qAll').classList.toggle('on',!qOnly);$('qFp').classList.toggle('on',qOnly);
-    $('qNote').textContent='Letta dal PDF di convocazione: controlla sempre il PDF originale. I facchini sono indicati solo come numero.';
+    $('qBody').innerHTML=html;
+    $('qNote').textContent='Persone dello stesso evento, con gli orari del PDF di convocazione: controlla sempre il PDF originale. I facchini sono indicati solo come numero.';
   }
-  $('qAll').onclick=function(){qOnly=false;renderSquadra()};
-  $('qFp').onclick=function(){qOnly=true;renderSquadra()};
+  $('qBody').addEventListener('click',function(ev){
+    var b=ev.target.closest('.qtg');if(!b)return;
+    var body=$('qb-'+b.getAttribute('data-q')),open=b.getAttribute('aria-expanded')==='true';
+    b.setAttribute('aria-expanded',open?'false':'true');
+    if(body)body.classList.toggle('on',!open);
+  });
   $('qClose').onclick=function(){$('ovQ').classList.remove('on')};
   $('wList').addEventListener('click',function(ev){
     var b=ev.target.closest('.sqb');if(b){$('ovW').classList.remove('on');openSquadra(b.getAttribute('data-sq'));return}
@@ -1956,6 +2078,36 @@ function pdfGeometry(opList,OPS){
     $('ovEv').classList.add('on');
   }
   $('evClose').onclick=function(){$('ovEv').classList.remove('on')};
+
+  /* --- memoria dell'app --- */
+  function kb(n){return (n/1024).toLocaleString('it-IT',{minimumFractionDigits:1,maximumFractionDigits:1})+' KB'}
+  function memStats(){
+    var total=JSON.stringify(S).length,det=0;
+    S.entries.forEach(function(e){
+      if(e.crew)det+=JSON.stringify(e.crew).length;
+      if(e.evento)det+=JSON.stringify(e.evento).length;
+      if(e.others)det+=JSON.stringify(e.others).length;
+    });
+    return {total:total,det:det};
+  }
+  function memShow(){
+    var m=memStats();
+    $('memInfo').textContent='Occupa '+kb(m.total)+' su circa 5.000 KB disponibili. Di questi, '+kb(m.det)+' sono dettagli dei PDF (squadre ed eventi).';
+  }
+  $('gear').addEventListener('click',memShow);
+  $('memClear').onclick=function(){
+    var n=S.entries.filter(function(e){return e.crew||e.evento||e.others}).length;
+    if(!n){toast('Non ci sono dettagli dei PDF da cancellare');return}
+    askConfirm({
+      title:'Svuotare i dettagli dei PDF?',
+      body:'Cancella squadre ed eventi di <b>'+n+(n===1?' turno':' turni')+'</b>. Turni, ore, assenze e impostazioni restano. Potrai riottenerli reimportando i PDF.',
+      yes:'Sì, svuota',no:'No, annulla',
+      onYes:function(){
+        S.entries.forEach(function(e){delete e.crew;delete e.evento;delete e.others});
+        save();render();memShow();toast('Dettagli dei PDF cancellati');
+      }
+    });
+  };
 
   /* --- elimina convocazioni in un periodo --- */
   function dKey(){return KEY+'.eliminazione'}
@@ -2022,8 +2174,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=34,APP_DATE='3 ottobre 2026';
+  var APP_VERSION=35,APP_DATE='3 ottobre 2026';
   var APP_LOG=[
+    [35,'Squadra per categoria con prima e dopo di te; squadre ed eventi conservati 40 giorni e fuori dal backup; contatore della memoria'],
     [34,'Evento letto dal PDF, con il pulsante Evento accanto a Squadra'],
     [33,'Calendario Settimana con gli stessi colori della scheda del giorno'],
     [32,'Scheda del giorno con bordo colorato: rosso lavoro, blu previsto, verde libero, arancione assenza'],
