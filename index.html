@@ -549,13 +549,13 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
 <script>
 (function(){
   var KEY='oreAuditorium.v1';
-  var S={entries:[],abs:[],cov:[],agDone:{},settings:{contract:169*60,opening:0,surname:''}};
+  var S={entries:[],abs:[],cov:[],agDone:{},pdfw:{},settings:{contract:169*60,opening:0,surname:''}};
   var $=function(id){return document.getElementById(id)};
 
   function load(){
     try{
       var r=localStorage.getItem(KEY);
-      if(r){var p=JSON.parse(r);S.entries=p.entries||[];S.abs=p.abs||[];S.cov=Array.isArray(p.cov)?p.cov:[];S.agDone=(p.agDone&&typeof p.agDone==='object'&&!Array.isArray(p.agDone))?p.agDone:{};for(var k in (p.settings||{}))S.settings[k]=p.settings[k];}
+      if(r){var p=JSON.parse(r);S.entries=p.entries||[];S.abs=p.abs||[];S.cov=Array.isArray(p.cov)?p.cov:[];S.agDone=(p.agDone&&typeof p.agDone==='object'&&!Array.isArray(p.agDone))?p.agDone:{};S.pdfw=(p.pdfw&&typeof p.pdfw==='object'&&!Array.isArray(p.pdfw))?p.pdfw:{};for(var k in (p.settings||{}))S.settings[k]=p.settings[k];}
     }catch(e){}
   }
   function save(){
@@ -1565,6 +1565,7 @@ function pdfGeometry(opList,OPS){
     if(Object.keys(newCats).length){var pc=Object.assign({},S.settings.cats||{});Object.keys(newCats).forEach(function(k){pc[k]={c:newCats[k].c||'',l:newCats[k].l||''}});S.settings.cats=pc}
     if(newCov.length)covAdd(newCov);
     if(newPdfName)agMark(newPdfName);
+    if(newCov.length&&newPdfAt){if(!S.pdfw)S.pdfw={};newCov.forEach(function(d){var k=mondayOf(d);if(!S.pdfw[k]||S.pdfw[k]<newPdfAt)S.pdfw[k]=newPdfAt})}
     pruneCrew();save();if(first){view=mkey(first);weekHint=first}render();
     $('ovI').classList.remove('on');resetPdfUi();
     toast([add?'Aggiunti '+add:'',upd?'aggiornati '+upd:'',fill?'sala, squadra o evento aggiunti a '+fill:'',skip?'saltati '+skip+' in giorni liberi':'',del?(del===1?'rimosso 1 turno non più presente':'rimossi '+del+' turni non più presenti'):''].filter(Boolean).join(', '));
@@ -1711,7 +1712,7 @@ function pdfGeometry(opList,OPS){
   function snapshot(){
     var c=JSON.parse(JSON.stringify(S));
     c.entries.forEach(function(e){delete e.crew;delete e.evento;delete e.others});
-    delete c.cov;delete c.agDone;
+    delete c.cov;delete c.agDone;delete c.pdfw;
     return JSON.stringify(Object.assign({app:'ore-auditorium',versione:APP_VERSION,exportedAt:new Date().toISOString()},c));
   }
   function lastBackupTxt(){
@@ -2117,6 +2118,7 @@ function pdfGeometry(opList,OPS){
     });
     var ad=addDays(todayStr(),-60),adc=false;
     Object.keys(S.agDone||{}).forEach(function(k){if(String(S.agDone[k])<ad){delete S.agDone[k];adc=true}});
+    Object.keys(S.pdfw||{}).forEach(function(k){if(k<ad){delete S.pdfw[k];adc=true}});
     if(adc)ch=true;
     var cc=addDays(todayStr(),-60),before=(S.cov||[]).length;
     S.cov=(S.cov||[]).filter(function(r){return r[1]>=cc});
@@ -2231,14 +2233,16 @@ function pdfGeometry(opList,OPS){
   });
 
   /* --- aggiornamenti delle convocazioni: l'app chiede alla casella dedicata quali PDF sono arrivati --- */
-  var AG_AT=KEY+'.aggAt',AG_LINK=KEY+'.agg',agLink='',agItems=[],agNews=[],agSnooze=false,agBusy=false;
+  var AG_AT=KEY+'.aggAt',AG_LINK=KEY+'.agg',AG_MAN=KEY+'.aggM',agFile='',agLink='',agItems=[],agNews=[],agSnooze=false,agBusy=false;
   var AG_MES={gen:0,feb:1,mar:2,apr:3,mag:4,giu:5,lug:6,ago:7,set:8,ott:9,nov:10,dic:11};
   var AG_MESN=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
   function agParse(name){
-    var n=String(name||''),vm=n.match(/^(\d+)__/),ver=vm?+vm[1]:0,y,m1,m2,d1,d2,m;
-    if((m=n.match(/(\d{1,2})_([a-z]{3})-(\d{1,2})_([a-z]{3})_(\d{4})/i))){d1=+m[1];m1=AG_MES[m[2].toLowerCase()];d2=+m[3];m2=AG_MES[m[4].toLowerCase()];y=+m[5]}
-    else if((m=n.match(/(\d{1,2})-(\d{1,2})_([a-z]{3})-([a-z]{3})_(\d{4})/i))){d1=+m[1];d2=+m[2];m1=AG_MES[m[3].toLowerCase()];m2=AG_MES[m[4].toLowerCase()];y=+m[5]}
-    else if((m=n.match(/(\d{1,2})-(\d{1,2})_([a-z]{3})_(\d{4})/i))){d1=+m[1];d2=+m[2];m1=m2=AG_MES[m[3].toLowerCase()];y=+m[4]}
+    var n=String(name||'').replace(/\.pdf$/i,'').replace(/[–—]/g,'-').replace(/_/g,' ').replace(/\s+/g,' ').trim();
+    var vm=n.match(/^(\d+)[.\s]/),ver=vm?+vm[1]:0,y,m1,m2,d1,d2,m;
+    function mm(w){return AG_MES[String(w).slice(0,3).toLowerCase()]}
+    if((m=n.match(/(\d{1,2}) ([a-z]{3,10}) ?- ?(\d{1,2}) ([a-z]{3,10}) (\d{4})/i))&&mm(m[2])!==undefined&&mm(m[4])!==undefined){d1=+m[1];m1=mm(m[2]);d2=+m[3];m2=mm(m[4]);y=+m[5]}
+    else if((m=n.match(/(\d{1,2}) ?- ?(\d{1,2}) ([a-z]{3,10}) ?- ?([a-z]{3,10}) (\d{4})/i))&&mm(m[3])!==undefined&&mm(m[4])!==undefined){d1=+m[1];d2=+m[2];m1=mm(m[3]);m2=mm(m[4]);y=+m[5]}
+    else if((m=n.match(/(\d{1,2}) ?- ?(\d{1,2}) ([a-z]{3,10}) (\d{4})/i))&&mm(m[3])!==undefined){d1=+m[1];d2=+m[2];m1=m2=mm(m[3]);y=+m[4]}
     var from=null,to=null;
     if(y&&m1!==undefined&&m2!==undefined){
       from=ds(m1>m2?y-1:y,m1+1,d1);to=ds(y,m2+1,d2);
@@ -2267,42 +2271,92 @@ function pdfGeometry(opList,OPS){
     return out;
   }
   function agNew(items){return agCandidates(items).filter(function(x){return !(S.agDone||{})[x.name]})}
+  var agCreatedCache={};
+  /* data di creazione scritta dentro il PDF (si legge senza aprirlo) */
+  function agCreated(b64){
+    try{var t=atob(b64),m=t.match(/\/CreationDate\s*\((D:[^)]*)\)/);return m?parsePdfDate(m[1]):null}catch(e){return null}
+  }
+  /* data di creazione dell'ultimo PDF importato per i giorni di quella settimana */
+  function agLocalAt(p){
+    var best='';
+    S.entries.forEach(function(e){if(e.pdfAt&&e.date>=p.from&&e.date<=p.to&&e.pdfAt>best)best=e.pdfAt});
+    var w=(S.pdfw||{})[mondayOf(p.from)];if(w&&w>best)best=w;
+    return best;
+  }
+  function agCovered(p){for(var i=0;i<7;i++){if(covHas(addDays(p.from,i)))return true}return false}
+  function agStatus(created,p){
+    var local=agLocalAt(p);
+    if(created&&local)return created>local?'new':'done';
+    if(local)return 'new';
+    return agCovered(p)?'done':'new';
+  }
+  /* per ogni convocazione non ancora segnata, controlla se i dati dell'app sono già aggiornati a quella versione */
+  function agDetect(cands){
+    var p=Promise.resolve();
+    cands.filter(function(x){return !(S.agDone||{})[x.name]&&x.p.from}).forEach(function(x){
+      p=p.then(function(){
+        var c=agCreatedCache[x.name];
+        if(c!==undefined)return c;
+        return agCall('action=get&id='+encodeURIComponent(x.id),15000).then(function(r){
+          var v=(r&&r.ok&&r.data)?agCreated(r.data):null;agCreatedCache[x.name]=v;return v;
+        });
+      }).then(function(created){
+        x.created=created;
+        if(agStatus(created,x.p)==='done')agMark(x.name);
+      });
+    });
+    return p;
+  }
   function agMark(name){
     if(!name)return;
     if(!S.agDone)S.agDone={};
     if(!S.agDone[name]){S.agDone[name]=new Date().toISOString().slice(0,10);save()}
   }
-  function agJsonp(url){
+  function agJsonp(url,ms){
     return new Promise(function(res,rej){
       var cb='agcb'+Date.now()+Math.floor(Math.random()*100000),sc=document.createElement('script'),t;
       function done(){clearTimeout(t);try{delete window[cb]}catch(e){window[cb]=undefined}if(sc.parentNode)sc.parentNode.removeChild(sc)}
-      t=setTimeout(function(){done();rej(new Error('timeout'))},30000);
+      t=setTimeout(function(){done();rej(new Error('timeout'))},ms||30000);
       window[cb]=function(d){done();res(d)};
       sc.onerror=function(){done();rej(new Error('script'))};
       sc.src=url+(url.indexOf('?')>=0?'&':'?')+'callback='+cb;
       document.head.appendChild(sc);
     });
   }
-  function agCall(params){
+  function agCall(params,ms){
     var url=agLink+(agLink.indexOf('?')>=0?'&':'?')+params;
-    if(typeof fetch!=='function')return agJsonp(url);
-    return fetch(url).then(function(r){if(!r.ok)throw new Error('http');return r.json()}).catch(function(){return agJsonp(url)});
+    if(typeof fetch!=='function')return agJsonp(url,ms);
+    return fetch(url).then(function(r){if(!r.ok)throw new Error('http');return r.json()}).catch(function(){return agJsonp(url,ms)});
   }
   function agUi(){var b=$('agBox');if(b)b.style.display=agLink?'':'none'}
+  function agSet(){
+    var man='';try{man=localStorage.getItem(AG_MAN)||''}catch(e){}
+    agLink=man||agFile;
+  }
   function agInit(){
-    try{agLink=localStorage.getItem(AG_LINK)||''}catch(e){}
-    agUi();
+    /* prova su un solo dispositivo: indirizzo dell'app + ?agg=<indirizzo dello script>  (e ?agg=off per spegnerla) */
+    try{
+      var q=new URLSearchParams(location.search),pa=q.get('agg');
+      if(pa!==null){
+        if(pa==='off')localStorage.removeItem(AG_MAN);
+        else if(/^https:\/\/[^\s]+$/i.test(pa))localStorage.setItem(AG_MAN,pa);
+        q.delete('agg');
+        history.replaceState(null,'',location.pathname+(q.toString()?'?'+q.toString():'')+location.hash);
+      }
+    }catch(e){}
+    try{agFile=localStorage.getItem(AG_LINK)||''}catch(e){}
+    agSet();agUi();
     if(typeof fetch!=='function'){if(agLink)agAuto();return}
     fetch('aggiornamenti.txt?'+Date.now(),{cache:'no-store'}).then(function(r){
-      if(r.status===404){agLink='';try{localStorage.removeItem(AG_LINK)}catch(e){}return null}
+      if(r.status===404){agFile='';try{localStorage.removeItem(AG_LINK)}catch(e){}return null}
       if(!r.ok)throw new Error('rete');
       return r.text();
     }).then(function(t){
       if(t===null)return;
       var l=String(t||'').split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean)[0]||'';
-      if(/^https:\/\/[^\s]+$/i.test(l)){agLink=l;try{localStorage.setItem(AG_LINK,l)}catch(e){}}
-      else{agLink='';try{localStorage.removeItem(AG_LINK)}catch(e){}}
-    }).catch(function(){}).then(function(){agUi();if(agLink)agAuto()});
+      if(/^https:\/\/[^\s]+$/i.test(l)){agFile=l;try{localStorage.setItem(AG_LINK,l)}catch(e){}}
+      else{agFile='';try{localStorage.removeItem(AG_LINK)}catch(e){}}
+    }).catch(function(){}).then(function(){agSet();agUi();if(agLink)agAuto()});
   }
   function agAuto(){
     var last=0;try{last=+localStorage.getItem(AG_AT)||0}catch(e){}
@@ -2310,7 +2364,11 @@ function pdfGeometry(opList,OPS){
     agCall('action=list').then(function(r){
       try{localStorage.setItem(AG_AT,String(Date.now()))}catch(e){}
       if(!r||!r.ok)return;
-      agNews=agNew(r.items||[]);showBanner();
+      var c=agCandidates(r.items||[]);
+      if(!c.filter(function(x){return !(S.agDone||{})[x.name]}).length)return;
+      return agDetect(c).then(function(){
+        agNews=c.filter(function(x){return !(S.agDone||{})[x.name]});showBanner();
+      });
     }).catch(function(){});
   }
   function agSay(t){$('agMsg').textContent=t||''}
@@ -2328,13 +2386,17 @@ function pdfGeometry(opList,OPS){
     if(agBusy||!agLink)return;
     agBusy=true;agSay('Controllo le convocazioni arrivate…');$('agRes').innerHTML='';
     agCall('action=list').then(function(r){
-      agBusy=false;
       if(!r||!r.ok)throw new Error('risposta');
       try{localStorage.setItem(AG_AT,String(Date.now()))}catch(e){}
-      agItems=agCandidates(r.items||[]);agNews=agNew(r.items||[]);
-      if(!agItems.length){agSay('Non ci sono convocazioni recenti nella casella.');return}
-      agSay(agNews.length?(agNews.length===1?'C\'è 1 convocazione da importare.':'Ci sono '+agNews.length+' convocazioni da importare.'):'Sei aggiornato: hai già importato l\'ultima versione.');
-      agRender();
+      agItems=agCandidates(r.items||[]);
+      if(!agItems.length){agBusy=false;agSay('Non ci sono convocazioni recenti nella casella.');return}
+      agSay('Controllo quali ho già importato…');
+      return agDetect(agItems).catch(function(){}).then(function(){
+        agBusy=false;
+        agNews=agItems.filter(function(x){return !(S.agDone||{})[x.name]});
+        agSay(agNews.length?(agNews.length===1?'C\'è 1 convocazione da importare.':'Ci sono '+agNews.length+' convocazioni da importare.'):'Sei aggiornato: hai già importato l\'ultima versione.');
+        agRender();
+      });
     }).catch(function(){agBusy=false;agSay('Non riesco a collegarmi per controllare. Riprova tra poco, oppure scegli il PDF a mano qui sotto.')});
   }
   function agLoad(i){
@@ -2459,8 +2521,10 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=43,APP_DATE='5 ottobre 2026';
+  var APP_VERSION=45,APP_DATE='5 ottobre 2026';
   var APP_LOG=[
+    [45,'Verifica aggiornamenti: riconosce le convocazioni già importate e legge i nomi dei file con spazi e mesi per esteso'],
+    [44,'Verifica aggiornamenti: si può provare su un solo dispositivo con ?agg=…'],
     [43,'Verifica aggiornamenti: importa le convocazioni arrivate nella casella dedicata, dopo la tua conferma'],
     [42,'Il PDF aggiornato sostituisce da solo i turni vecchi ancora previsti; si chiede solo se il turno era già confermato'],
     [41,'Corretto: quando un turno del PDF cade in un giorno che ha già un turno, l\'anteprima mostra di nuovo la scelta (lascia, cambia, aggiungi)'],
