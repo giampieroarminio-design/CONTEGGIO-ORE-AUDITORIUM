@@ -240,6 +240,11 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .shd>div:first-child{flex:1;min-width:0}
 .xb{flex:none;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:20px;line-height:1;font-weight:700}
 .xb:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.agr{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+.agr:last-child{border-bottom:0}
+.agr b{font-weight:700}
+.agr small{display:block;color:var(--mute);font-weight:500}
+.agr .agok{color:var(--pos);font-weight:700;font-size:13px;white-space:nowrap}
 .okb{margin-right:14px;min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--acc);background:none;color:var(--acc);font-weight:600;font-size:14px}
 .okb:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .addday{display:block;width:100%;text-align:left;background:none;border:0;color:var(--acc);font-weight:600;font-size:14px;padding:4px 16px 12px;min-height:40px}
@@ -354,6 +359,11 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <h2>Importa convocazioni</h2>
   <p class="hint" style="margin:0 0 10px">Scegli il PDF che ricevi ogni settimana: l'app cerca il tuo cognome nella colonna e legge giorno, inizio e fine. Il file resta sul telefono e non viene inviato da nessuna parte.</p>
   <input type="file" id="iFile" accept="application/pdf,.pdf" hidden>
+  <div id="agBox" style="display:none;margin:0 0 14px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--bg)">
+    <button class="btn pri" id="agCheck" style="width:100%">Verifica aggiornamenti</button>
+    <p class="hint" id="agMsg" role="status" style="margin:8px 0 0;font-weight:600;color:var(--ink)"></p>
+    <div id="agRes"></div>
+  </div>
   <p class="hint" id="iWho" style="color:var(--ink);font-weight:600;margin:0 0 8px"></p>
   <div class="two" id="iWhoBtn" style="display:none;margin-bottom:8px">
     <button class="btn sm" id="iWhoYes">Sì, è il mio</button>
@@ -539,13 +549,13 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
 <script>
 (function(){
   var KEY='oreAuditorium.v1';
-  var S={entries:[],abs:[],cov:[],settings:{contract:169*60,opening:0,surname:''}};
+  var S={entries:[],abs:[],cov:[],agDone:{},settings:{contract:169*60,opening:0,surname:''}};
   var $=function(id){return document.getElementById(id)};
 
   function load(){
     try{
       var r=localStorage.getItem(KEY);
-      if(r){var p=JSON.parse(r);S.entries=p.entries||[];S.abs=p.abs||[];S.cov=Array.isArray(p.cov)?p.cov:[];for(var k in (p.settings||{}))S.settings[k]=p.settings[k];}
+      if(r){var p=JSON.parse(r);S.entries=p.entries||[];S.abs=p.abs||[];S.cov=Array.isArray(p.cov)?p.cov:[];S.agDone=(p.agDone&&typeof p.agDone==='object'&&!Array.isArray(p.agDone))?p.agDone:{};for(var k in (p.settings||{}))S.settings[k]=p.settings[k];}
     }catch(e){}
   }
   function save(){
@@ -1287,7 +1297,7 @@ function pdfGeometry(opList,OPS){
   return {hy:hy,vx:u,strikes:strikes,diags:diags,hl:hl,cf:cf};
 }
 
-  var newCats={},newCov=[];
+  var newCats={},newCov=[],newPdfName='';
   var found=[],vlist=[],vInfo={dates:[],older:false,newPdfAt:null,noShifts:false,surname:''},newPdfAt=null;
   function iMsg(t){$('iMsg').textContent=t}
   function loadPdfJs(){
@@ -1434,7 +1444,7 @@ function pdfGeometry(opList,OPS){
     if(c.ef)parts.push(c.ef===1?'evento aggiunto a 1 turno':'evento aggiunto a '+c.ef+' turni');
     if(c.cv)parts.push('giorni liberi segnati');
     if(parts.length){go.textContent='Importa: '+parts.join(', ');go.style.display=''}
-    else go.style.display='none';
+    else{go.style.display='none';if(newPdfName&&found.length)agMark(newPdfName)}
   }
   $('iPrev').onclick=function(ev){
     var vb=ev.target.closest('button[data-v]');
@@ -1443,7 +1453,7 @@ function pdfGeometry(opList,OPS){
     var r=found[+b.getAttribute('data-i')];
     if(r){r.act=b.getAttribute('data-a');renderPrev()}
   };
-  function resetPdfUi(){found=[];vlist=[];vInfo={dates:[],older:false,newPdfAt:null,noShifts:false,surname:''};newPdfAt=null;newCats={};newCov=[];renderPrev();iMsg('')}
+  function resetPdfUi(){found=[];vlist=[];vInfo={dates:[],older:false,newPdfAt:null,noShifts:false,surname:''};newPdfAt=null;newCats={};newCov=[];newPdfName='';renderPrev();iMsg('')}
   function showFound(list,extra,meta){
     found=analyze(list);
     vlist=(meta&&meta.dates&&meta.dates.length)?computeVanished(meta.dates,meta.struck,meta.pdfAt):[];
@@ -1465,7 +1475,10 @@ function pdfGeometry(opList,OPS){
   $('iFile').onchange=function(){
     var f=this.files&&this.files[0];this.value='';
     if(!f)return;
-    resetPdfUi();iMsg('Lettura del PDF…');
+    readPdfFile(f);
+  };
+  function readPdfFile(f){
+    resetPdfUi();iMsg('Lettura del PDF…');newPdfName=f.name||'';
     var surname=S.settings.surname||'';
     if(!surname.trim()){iMsg('Prima scrivi il tuo cognome nelle impostazioni (⚙).');return}
     if(!S.settings.surnameOk){iMsg('Prima conferma che '+surname+' è il tuo cognome.');return}
@@ -1507,7 +1520,7 @@ function pdfGeometry(opList,OPS){
     }).catch(function(){
       iMsg('Non riesco a leggere il PDF qui. Usa "incolla il testo" qui sotto, o mandalo a Claude in chat.');
     });
-  };
+  }
 
   /* applica le scelte */
   /* applica le scelte */
@@ -1551,6 +1564,7 @@ function pdfGeometry(opList,OPS){
     }
     if(Object.keys(newCats).length){var pc=Object.assign({},S.settings.cats||{});Object.keys(newCats).forEach(function(k){pc[k]={c:newCats[k].c||'',l:newCats[k].l||''}});S.settings.cats=pc}
     if(newCov.length)covAdd(newCov);
+    if(newPdfName)agMark(newPdfName);
     pruneCrew();save();if(first){view=mkey(first);weekHint=first}render();
     $('ovI').classList.remove('on');resetPdfUi();
     toast([add?'Aggiunti '+add:'',upd?'aggiornati '+upd:'',fill?'sala, squadra o evento aggiunti a '+fill:'',skip?'saltati '+skip+' in giorni liberi':'',del?(del===1?'rimosso 1 turno non più presente':'rimossi '+del+' turni non più presenti'):''].filter(Boolean).join(', '));
@@ -1697,7 +1711,7 @@ function pdfGeometry(opList,OPS){
   function snapshot(){
     var c=JSON.parse(JSON.stringify(S));
     c.entries.forEach(function(e){delete e.crew;delete e.evento;delete e.others});
-    delete c.cov;
+    delete c.cov;delete c.agDone;
     return JSON.stringify(Object.assign({app:'ore-auditorium',versione:APP_VERSION,exportedAt:new Date().toISOString()},c));
   }
   function lastBackupTxt(){
@@ -2101,6 +2115,9 @@ function pdfGeometry(opList,OPS){
     S.entries.forEach(function(e){
       if(e.date<cut&&(e.crew||e.evento||e.others)){delete e.crew;delete e.evento;delete e.others;ch=true}
     });
+    var ad=addDays(todayStr(),-60),adc=false;
+    Object.keys(S.agDone||{}).forEach(function(k){if(String(S.agDone[k])<ad){delete S.agDone[k];adc=true}});
+    if(adc)ch=true;
     var cc=addDays(todayStr(),-60),before=(S.cov||[]).length;
     S.cov=(S.cov||[]).filter(function(r){return r[1]>=cc});
     if(S.cov.length!==before)ch=true;
@@ -2213,6 +2230,128 @@ function pdfGeometry(opList,OPS){
     var v=ev.target.closest('.evb');if(v){$('ovW').classList.remove('on');openEvento(v.getAttribute('data-ev'))}
   });
 
+  /* --- aggiornamenti delle convocazioni: l'app chiede alla casella dedicata quali PDF sono arrivati --- */
+  var AG_AT=KEY+'.aggAt',AG_LINK=KEY+'.agg',agLink='',agItems=[],agNews=[],agSnooze=false,agBusy=false;
+  var AG_MES={gen:0,feb:1,mar:2,apr:3,mag:4,giu:5,lug:6,ago:7,set:8,ott:9,nov:10,dic:11};
+  var AG_MESN=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+  function agParse(name){
+    var n=String(name||''),vm=n.match(/^(\d+)__/),ver=vm?+vm[1]:0,y,m1,m2,d1,d2,m;
+    if((m=n.match(/(\d{1,2})_([a-z]{3})-(\d{1,2})_([a-z]{3})_(\d{4})/i))){d1=+m[1];m1=AG_MES[m[2].toLowerCase()];d2=+m[3];m2=AG_MES[m[4].toLowerCase()];y=+m[5]}
+    else if((m=n.match(/(\d{1,2})-(\d{1,2})_([a-z]{3})-([a-z]{3})_(\d{4})/i))){d1=+m[1];d2=+m[2];m1=AG_MES[m[3].toLowerCase()];m2=AG_MES[m[4].toLowerCase()];y=+m[5]}
+    else if((m=n.match(/(\d{1,2})-(\d{1,2})_([a-z]{3})_(\d{4})/i))){d1=+m[1];d2=+m[2];m1=m2=AG_MES[m[3].toLowerCase()];y=+m[4]}
+    var from=null,to=null;
+    if(y&&m1!==undefined&&m2!==undefined){
+      from=ds(m1>m2?y-1:y,m1+1,d1);to=ds(y,m2+1,d2);
+      if(to<from){from=null;to=null}
+    }
+    return {ver:ver,from:from,to:to};
+  }
+  function agLabel(p){
+    if(!p||!p.from)return '';
+    var a=p.from.split('-'),b=p.to.split('-');
+    return a[1]===b[1]?(+a[2])+'–'+(+b[2])+' '+AG_MESN[+a[1]-1]:(+a[2])+' '+AG_MESN[+a[1]-1]+' – '+(+b[2])+' '+AG_MESN[+b[1]-1];
+  }
+  /* per ogni settimana ancora utile tiene solo la versione col numero più alto */
+  function agCandidates(items){
+    var today=todayStr(),lim=addDays(today,-3),old=addDays(today,-14),by={};
+    (items||[]).forEach(function(x){
+      if(!x||!x.name)return;
+      var p=agParse(x.name);x.p=p;
+      var key=p.from?p.from+'|'+p.to:'n|'+x.name;
+      if(p.from){if(p.to<lim)return}else if(String(x.date||'').slice(0,10)<old)return;
+      var b=by[key];
+      if(!b||p.ver>b.p.ver||(p.ver===b.p.ver&&String(x.date)>String(b.date)))by[key]=x;
+    });
+    var out=Object.keys(by).map(function(k){return by[k]});
+    out.sort(function(a,b){return String(a.p.from||a.date)<String(b.p.from||b.date)?-1:1});
+    return out;
+  }
+  function agNew(items){return agCandidates(items).filter(function(x){return !(S.agDone||{})[x.name]})}
+  function agMark(name){
+    if(!name)return;
+    if(!S.agDone)S.agDone={};
+    if(!S.agDone[name]){S.agDone[name]=new Date().toISOString().slice(0,10);save()}
+  }
+  function agJsonp(url){
+    return new Promise(function(res,rej){
+      var cb='agcb'+Date.now()+Math.floor(Math.random()*100000),sc=document.createElement('script'),t;
+      function done(){clearTimeout(t);try{delete window[cb]}catch(e){window[cb]=undefined}if(sc.parentNode)sc.parentNode.removeChild(sc)}
+      t=setTimeout(function(){done();rej(new Error('timeout'))},30000);
+      window[cb]=function(d){done();res(d)};
+      sc.onerror=function(){done();rej(new Error('script'))};
+      sc.src=url+(url.indexOf('?')>=0?'&':'?')+'callback='+cb;
+      document.head.appendChild(sc);
+    });
+  }
+  function agCall(params){
+    var url=agLink+(agLink.indexOf('?')>=0?'&':'?')+params;
+    if(typeof fetch!=='function')return agJsonp(url);
+    return fetch(url).then(function(r){if(!r.ok)throw new Error('http');return r.json()}).catch(function(){return agJsonp(url)});
+  }
+  function agUi(){var b=$('agBox');if(b)b.style.display=agLink?'':'none'}
+  function agInit(){
+    try{agLink=localStorage.getItem(AG_LINK)||''}catch(e){}
+    agUi();
+    if(typeof fetch!=='function'){if(agLink)agAuto();return}
+    fetch('aggiornamenti.txt?'+Date.now(),{cache:'no-store'}).then(function(r){
+      if(r.status===404){agLink='';try{localStorage.removeItem(AG_LINK)}catch(e){}return null}
+      if(!r.ok)throw new Error('rete');
+      return r.text();
+    }).then(function(t){
+      if(t===null)return;
+      var l=String(t||'').split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean)[0]||'';
+      if(/^https:\/\/[^\s]+$/i.test(l)){agLink=l;try{localStorage.setItem(AG_LINK,l)}catch(e){}}
+      else{agLink='';try{localStorage.removeItem(AG_LINK)}catch(e){}}
+    }).catch(function(){}).then(function(){agUi();if(agLink)agAuto()});
+  }
+  function agAuto(){
+    var last=0;try{last=+localStorage.getItem(AG_AT)||0}catch(e){}
+    if(Date.now()-last<3*3600*1000)return;
+    agCall('action=list').then(function(r){
+      try{localStorage.setItem(AG_AT,String(Date.now()))}catch(e){}
+      if(!r||!r.ok)return;
+      agNews=agNew(r.items||[]);showBanner();
+    }).catch(function(){});
+  }
+  function agSay(t){$('agMsg').textContent=t||''}
+  function agRender(){
+    var h='';
+    agItems.forEach(function(x,i){
+      var done=!!(S.agDone||{})[x.name],al=agLabel(x.p),d=new Date(x.date);
+      var when=isNaN(d.getTime())?'':'arrivata il '+d.toLocaleDateString('it-IT',{day:'numeric',month:'long'})+' alle '+pad(d.getHours())+':'+pad(d.getMinutes());
+      h+='<div class="agr"><span><b>'+esc(al?'Settimana '+al:x.name)+'</b><small>'+(x.p.ver?'versione '+x.p.ver+' · ':'')+esc(when)+'</small></span>'+
+        (done?'<span class="agok">già importata</span>':'<button type="button" class="btn sm" data-ag="'+i+'">Importa</button>')+'</div>';
+    });
+    $('agRes').innerHTML=h;
+  }
+  function agCheck(){
+    if(agBusy||!agLink)return;
+    agBusy=true;agSay('Controllo le convocazioni arrivate…');$('agRes').innerHTML='';
+    agCall('action=list').then(function(r){
+      agBusy=false;
+      if(!r||!r.ok)throw new Error('risposta');
+      try{localStorage.setItem(AG_AT,String(Date.now()))}catch(e){}
+      agItems=agCandidates(r.items||[]);agNews=agNew(r.items||[]);
+      if(!agItems.length){agSay('Non ci sono convocazioni recenti nella casella.');return}
+      agSay(agNews.length?(agNews.length===1?'C\'è 1 convocazione da importare.':'Ci sono '+agNews.length+' convocazioni da importare.'):'Sei aggiornato: hai già importato l\'ultima versione.');
+      agRender();
+    }).catch(function(){agBusy=false;agSay('Non riesco a collegarmi per controllare. Riprova tra poco, oppure scegli il PDF a mano qui sotto.')});
+  }
+  function agLoad(i){
+    var x=agItems[i];if(!x||agBusy)return;
+    agBusy=true;agSay('Scarico la convocazione…');
+    agCall('action=get&id='+encodeURIComponent(x.id)).then(function(r){
+      agBusy=false;
+      if(!r||!r.ok||!r.data)throw new Error('risposta');
+      var bin=atob(r.data),u=new Uint8Array(bin.length);
+      for(var k=0;k<bin.length;k++)u[k]=bin.charCodeAt(k);
+      agSay('');
+      readPdfFile({name:x.name,arrayBuffer:function(){return Promise.resolve(u.buffer)}});
+    }).catch(function(){agBusy=false;agSay('Non riesco a scaricare questa convocazione. Riprova tra poco.')});
+  }
+  $('agCheck').onclick=agCheck;
+  $('agRes').onclick=function(ev){var b=ev.target.closest('button[data-ag]');if(b)agLoad(+b.getAttribute('data-ag'))};
+
   /* --- evento: il testo della cella Evento del PDF --- */
   function openEvento(id){
     var e=S.entries.find(function(x){return x.id===id});
@@ -2320,8 +2459,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=42,APP_DATE='4 ottobre 2026';
+  var APP_VERSION=43,APP_DATE='5 ottobre 2026';
   var APP_LOG=[
+    [43,'Verifica aggiornamenti: importa le convocazioni arrivate nella casella dedicata, dopo la tua conferma'],
     [42,'Il PDF aggiornato sostituisce da solo i turni vecchi ancora previsti; si chiede solo se il turno era già confermato'],
     [41,'Corretto: quando un turno del PDF cade in un giorno che ha già un turno, l\'anteprima mostra di nuovo la scelta (lascia, cambia, aggiungi)'],
     [40,'Conferma del cognome prima di importare i PDF; avviso se cambi cognome con turni previsti già importati'],
@@ -2557,6 +2697,10 @@ function pdfGeometry(opList,OPS){
       var sn=(S.settings.surname||'').trim();
       html=sn?'<b>Il cognome usato per leggere i PDF è '+esc(sn)+'.</b> È il tuo? Serve per importare i tuoi turni e non quelli di un collega.<br><button type="button" id="stYes">Sì, è il mio</button> <button type="button" id="stNo">No, lo cambio</button>'
              :'<b>Scrivi il tuo cognome.</b> Serve per leggere dai PDF i tuoi turni.<br><button type="button" id="stNo">Imposta il cognome</button>';
+    }else if(agNews.length&&!agSnooze){
+      cls='warn';
+      var an=agNews[agNews.length-1],al=agLabel(an.p);
+      html='<b>'+(agNews.length===1?'C\'è un aggiornamento delle convocazioni':'Ci sono '+agNews.length+' aggiornamenti delle convocazioni')+'</b>'+(agNews.length===1?' ('+(al?'settimana '+esc(al)+', ':'')+(an.p.ver?'versione '+an.p.ver:esc(an.name))+')':'')+'.<br><button type="button" id="stAg">Verifica</button> <button type="button" id="stAgLater">Più tardi</button>';
     }else if(backupDue()){
       cls='warn';
       var lb=S.settings.lastBackup;
@@ -2566,6 +2710,9 @@ function pdfGeometry(opList,OPS){
     }
     if(!html){b.style.display='none';return}
     b.className='stb '+cls;b.innerHTML=html;b.style.display='';
+    var ag=$('stAg'),agl=$('stAgLater');
+    if(ag)ag.onclick=function(){b.style.display='none';$('import').click();setTimeout(function(){$('agCheck').click()},60)};
+    if(agl)agl.onclick=function(){agSnooze=true;b.style.display='none'};
     var yes=$('stYes'),no=$('stNo');
     if(yes)yes.onclick=function(){S.settings.surnameOk=true;save();b.style.display='none';showBanner()};
     if(no)no.onclick=function(){$('gear').click();setTimeout(function(){try{$('sSur').focus();$('sSur').select()}catch(e){}},80)};
@@ -2610,7 +2757,7 @@ function pdfGeometry(opList,OPS){
   load();
   try{pruneCrew()}catch(e){}
   (function(){var ch=false;S.entries.forEach(function(e){if(e.sala){var n=salaName(e.sala);if(n!==e.sala){e.sala=n;ch=true}}});if(ch)save()})();
-  render();showBanner();handleLink();
+  render();showBanner();agInit();handleLink();
 })();
 </script>
 </body>
