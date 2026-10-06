@@ -245,6 +245,15 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .agr b{font-weight:700}
 .agr small{display:block;color:var(--mute);font-weight:500}
 .agr .agok{color:var(--pos);font-weight:700;font-size:13px;white-space:nowrap}
+.chg-box{border:3px solid var(--sun);border-radius:12px;padding:10px 12px;margin:0 0 12px;background:var(--card)}
+.chg-box>b{display:block;font-size:15px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
+.chr{padding:7px 0;border-top:1px solid var(--line);font-size:15px;line-height:1.4}
+.chr:first-of-type{border-top:0}
+.chd{font-weight:800}
+.chk{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;background:var(--sun);color:#111;font-size:12px;font-weight:800;text-transform:uppercase}
+.chr s{color:var(--mute)}
+.chgt{color:var(--sun);font-weight:800;font-size:13px}
+.stb.chgb{background:var(--card);border:3px solid var(--sun)}
 .okb{margin-right:14px;min-height:40px;padding:0 12px;border-radius:10px;border:1px solid var(--acc);background:none;color:var(--acc);font-weight:600;font-size:14px}
 .okb:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .addday{display:block;width:100%;text-align:left;background:none;border:0;color:var(--acc);font-weight:600;font-size:14px;padding:4px 16px 12px;min-height:40px}
@@ -544,18 +553,25 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <div class="act"><button class="btn full" id="evClose">Chiudi</button></div>
 </div></div>
 
+<!-- Cosa è cambiato nei tuoi turni -->
+<div class="ov" id="ovCh"><div class="sheet">
+  <div class="shd"><div><div style="font-size:18px;font-weight:800">Cosa è cambiato nei tuoi turni</div><div class="hint" id="chSub" style="margin:2px 0 0"></div></div><button type="button" class="xb" id="chX" aria-label="Chiudi">✕</button></div>
+  <div id="chList"></div>
+  <div class="act"><button class="btn pri full" id="chRead">Ho letto</button></div>
+</div></div>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 (function(){
   var KEY='oreAuditorium.v1';
-  var S={entries:[],abs:[],cov:[],agDone:{},pdfw:{},settings:{contract:169*60,opening:0,surname:''}};
+  var S={entries:[],abs:[],cov:[],agDone:{},pdfw:{},chg:[],settings:{contract:169*60,opening:0,surname:''}};
   var $=function(id){return document.getElementById(id)};
 
   function load(){
     try{
       var r=localStorage.getItem(KEY);
-      if(r){var p=JSON.parse(r);S.entries=p.entries||[];S.abs=p.abs||[];S.cov=Array.isArray(p.cov)?p.cov:[];S.agDone=(p.agDone&&typeof p.agDone==='object'&&!Array.isArray(p.agDone))?p.agDone:{};S.pdfw=(p.pdfw&&typeof p.pdfw==='object'&&!Array.isArray(p.pdfw))?p.pdfw:{};for(var k in (p.settings||{}))S.settings[k]=p.settings[k];}
+      if(r){var p=JSON.parse(r);S.entries=p.entries||[];S.abs=p.abs||[];S.cov=Array.isArray(p.cov)?p.cov:[];S.agDone=(p.agDone&&typeof p.agDone==='object'&&!Array.isArray(p.agDone))?p.agDone:{};S.pdfw=(p.pdfw&&typeof p.pdfw==='object'&&!Array.isArray(p.pdfw))?p.pdfw:{};S.chg=Array.isArray(p.chg)?p.chg:[];for(var k in (p.settings||{}))S.settings[k]=p.settings[k];}
     }catch(e){}
   }
   function save(){
@@ -721,6 +737,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
       items.forEach(function(e){if(conf(e)){nc++;var x=dur(e);if(x!=null)tot+=x}});
       var rows=items.map(function(e){
         var dm=dur(e),sub=[],isP=!conf(e),vi=varInfo(e);
+        if(e.chg)sub.push('<small class="chgt">'+(e.chg==='nuovo turno'?'Nuovo turno':'Cambiato · prima '+esc(e.chg))+'</small>');
         if(isP)sub.push('<small class="pv">previsto, da confermare</small>');
         else if(e.ps&&(e.ps!==e.start||e.pe!==e.end))sub.push('<small>previsto '+e.ps+' – '+e.pe+(e.vnote?' · '+esc(e.vnote):'')+'</small>');
         if(vi)sub.unshift(vi.html);
@@ -1337,7 +1354,7 @@ function pdfGeometry(opList,OPS){
       var day=S.entries.filter(function(e){return e.date===t.date});
       var r={date:t.date,ps:t.ps,pe:t.pe,sala:t.sala||'',warn:!!t.warn,day:day,act:'keep',status:'new',match:null,fill:false,crewNew:false,evento:t.evento||'',evNew:false,crewOn:S.settings.crew!==false,others:(S.settings.crew!==false&&t.crew&&t.crew.length)?(t.others||[]):null,crew:(S.settings.crew!==false&&t.crew&&t.crew.length)?t.crew:null,absT:((S.abs||[]).filter(function(a){return a.date===t.date})[0]||{}).type||null};
       var same=day.filter(function(e){return sameSlot(e,t)})[0];
-      if(same){r.status='same';r.match=same;r.fill=!!(r.sala&&!same.sala);r.crewNew=!!(r.crewOn&&(JSON.stringify(same.crew||null)!==JSON.stringify(r.crew||null)||JSON.stringify(same.others||null)!==JSON.stringify(r.others||null)));r.evNew=((r.evento||'')!==(same.evento||''))}
+      if(same){r.status='same';r.match=same;r.fill=!!(r.sala&&same.sala!==r.sala);r.crewNew=!!(r.crewOn&&(JSON.stringify(same.crew||null)!==JSON.stringify(r.crew||null)||JSON.stringify(same.others||null)!==JSON.stringify(r.others||null)));r.evNew=((r.evento||'')!==(same.evento||''))}
       else{
         /* i turni vecchi ancora "previsti" nello stesso giorno vengono sostituiti da soli (il PDF vale come legge);
            si chiede cosa fare solo se il turno era già confermato, inserito a mano, o arrivato da un PDF più recente */
@@ -1414,14 +1431,64 @@ function pdfGeometry(opList,OPS){
   function seg(i,act,label,cur){
     return '<button type="button" data-i="'+i+'" data-a="'+act+'" class="'+(cur===act?'on':'')+'" aria-pressed="'+(cur===act)+'">'+label+'</button>';
   }
+  /* cambi di turno che riguardano l'utente: turni cambiati, tolti, nuovi (in settimane già importate), sala cambiata */
+  function chPair(x){return x.s+' – '+x.e+(x.sala?' · '+esc(x.sala):'')}
+  function chLine(c,long){
+    var d=long?dLabel(c.d,{weekday:'long',day:'numeric',month:'long'}):fmtDay(c.d),h='<div class="chr"><span class="chd">'+esc(d)+'</span>';
+    if(c.k==='mod')h+='<span class="chk">Cambiato</span><div><s>'+chPair(c.a)+'</s> → <b>'+chPair(c.b)+'</b></div>';
+    else if(c.k==='sala')h+='<span class="chk">Sala cambiata</span><div>'+esc(c.b.s+' – '+c.b.e)+' · <s>'+esc(c.a.sala)+'</s> → <b>'+esc(c.b.sala)+'</b></div>';
+    else if(c.k==='del')h+='<span class="chk">Tolto</span><div><s>'+chPair(c.a)+'</s></div>';
+    else h+='<span class="chk">Nuovo turno</span><div><b>'+chPair(c.b)+'</b></div>';
+    return h+'</div>';
+  }
+  function computeChanges(){
+    var by={};
+    function sl(d){return by[d]||(by[d]={rem:[],add:[],mod:[]})}
+    vlist.forEach(function(v){if(v.planned&&!v.newer&&v.act==='del')sl(v.e.date).rem.push({s:v.e.start,e:v.e.end,sala:v.e.sala||''})});
+    found.forEach(function(r){
+      if(r.status==='new'||(r.status==='conflict'&&r.act==='add'))sl(r.date).add.push({s:r.ps,e:r.pe,sala:r.sala||''});
+      else if(r.status==='conflict'&&r.act==='upd'&&r.match)sl(r.date).mod.push({k:'mod',a:{s:r.match.ps||r.match.start,e:r.match.pe||r.match.end,sala:r.match.sala||''},b:{s:r.ps,e:r.pe,sala:r.sala||r.match.sala||''}});
+      else if(r.status==='same'&&r.fill&&r.match&&r.match.sala)sl(r.date).mod.push({k:'sala',a:{s:r.match.start,e:r.match.end,sala:r.match.sala},b:{s:r.ps,e:r.pe,sala:r.sala}});
+    });
+    var out=[];
+    Object.keys(by).sort().forEach(function(d){
+      var x=by[d],rem=x.rem.slice(),add=x.add.slice();
+      x.mod.forEach(function(m){out.push({d:d,k:m.k,a:m.a,b:m.b})});
+      while(rem.length&&add.length){
+        var bi=0,bj=0,bd=1e9;
+        rem.forEach(function(r,i){add.forEach(function(a,j){var dd=Math.abs(toM(r.s)-toM(a.s));if(dd<bd){bd=dd;bi=i;bj=j}})});
+        out.push({d:d,k:'mod',a:rem[bi],b:add[bj]});rem.splice(bi,1);add.splice(bj,1);
+      }
+      rem.forEach(function(r){out.push({d:d,k:'del',a:r})});
+      if(covHas(d))add.forEach(function(a){out.push({d:d,k:'add',b:a})});
+    });
+    return out;
+  }
+  function chBoxHtml(){
+    var cs=computeChanges();
+    if(!cs.length)return '';
+    return '<div class="chg-box"><b>Cosa cambia per te</b>'+cs.map(function(c){return chLine(c,false)}).join('')+'</div>';
+  }
+  function chOpen(){
+    var cs=S.chg||[];
+    $('chSub').textContent=cs.length+(cs.length===1?' modifica':' modifiche')+' nell\'ultimo aggiornamento degli orari';
+    $('chList').innerHTML='<div class="chg-box" style="margin-top:12px">'+cs.map(function(c){return chLine(c,true)}).join('')+'</div>';
+    $('ovCh').classList.add('on');
+  }
+  function chRead(){
+    S.chg=[];S.entries.forEach(function(e){delete e.chg});
+    save();$('ovCh').classList.remove('on');render();showBanner();
+  }
+  $('chX').onclick=function(){$('ovCh').classList.remove('on')};
+  $('chRead').onclick=chRead;
   function renderPrev(){
     var box=$('iPrev'),go=$('iPdfGo');
     if(!found.length&&!vlist.length&&!vInfo.older&&!vInfo.noShifts){box.style.display='none';go.style.display='none';return}
-    box.innerHTML=found.map(function(r,i){
+    box.innerHTML=chBoxHtml()+found.map(function(r,i){
       var h='<div class="pi"><span class="num">'+fmtDay(r.date)+' &nbsp; '+r.ps+' – '+r.pe+(r.sala?' <em class="sl">'+esc(r.sala)+'</em>':'')+'</span>';
       if(r.warn)h+='<small class="wr">controlla la data</small>';
       if(r.absT)h+='<small class="wr">Attenzione: hai segnato questo giorno come '+esc(ABS[r.absT])+'</small>';
-      if(r.status==='same')h+='<small class="ok">'+(function(){var pp=[];if(r.fill)pp.push('la sala');if(r.crewNew)pp.push('la squadra');if(r.evNew)pp.push('l\'evento');return pp.length?'Già presente: aggiorno '+pp.join(', '):'Già presente, nessuna modifica'})()+'</small>';
+      if(r.status==='same')h+='<small class="ok">'+(function(){var pp=[];if(r.fill)pp.push(r.match.sala?'la sala (da '+esc(r.match.sala)+' a '+esc(r.sala)+')':'la sala');if(r.crewNew)pp.push('la squadra');if(r.evNew)pp.push('l\'evento');return pp.length?'Già presente: aggiorno '+pp.join(', '):'Già presente, nessuna modifica'})()+'</small>';
       if(r.evento&&(r.status!=='same'||r.evNew))h+='<small>Evento letto: '+esc(r.evento.split('\n')[0].slice(0,60))+(r.evento.indexOf('\n')>=0||r.evento.length>60?'…':'')+'</small>';
       if(r.crew&&(r.status!=='same'||r.crewNew)){var nc=r.crew.filter(function(c){return c[0]!=='X'}).length;h+='<small>Squadra letta: '+nc+(nc===1?' collega':' colleghi')+'</small>'}
       if(r.status==='conflict'){
@@ -1533,6 +1600,7 @@ function pdfGeometry(opList,OPS){
   }
   function applyImport(skipAbs,doDel){
     var add=0,upd=0,fill=0,skip=0,del=0,first=null;
+    var chs=computeChanges().filter(function(c){return !(skipAbs&&c.k==='add'&&absOn(c.d).length)});
     function stamp(e){if(newPdfAt)e.pdfAt=newPdfAt}
     function mark(d){if(!first||d<first)first=d}
     function push(r){
@@ -1563,12 +1631,24 @@ function pdfGeometry(opList,OPS){
       }
     }
     if(Object.keys(newCats).length){var pc=Object.assign({},S.settings.cats||{});Object.keys(newCats).forEach(function(k){pc[k]={c:newCats[k].c||'',l:newCats[k].l||''}});S.settings.cats=pc}
+    if(chs.length){
+      var nowIso=new Date().toISOString(),have={};
+      (S.chg||[]).forEach(function(c){have[JSON.stringify([c.d,c.k,c.a,c.b])]=1});
+      chs.forEach(function(c){
+        var key=JSON.stringify([c.d,c.k,c.a||null,c.b||null]);
+        if(!have[key]){S.chg.push({d:c.d,k:c.k,a:c.a||null,b:c.b||null,at:nowIso});have[key]=1}
+        if(c.b){
+          var en=S.entries.find(function(e){return e.date===c.d&&(e.ps||e.start)===c.b.s&&(e.pe||e.end)===c.b.e});
+          if(en)en.chg=c.k==='add'?'nuovo turno':(c.k==='sala'?(c.a.sala||'sala'):(c.a.s+' – '+c.a.e));
+        }
+      });
+    }
     if(newCov.length)covAdd(newCov);
     if(newPdfName)agMark(newPdfName);
     if(newCov.length&&newPdfAt){if(!S.pdfw)S.pdfw={};newCov.forEach(function(d){var k=mondayOf(d);if(!S.pdfw[k]||S.pdfw[k]<newPdfAt)S.pdfw[k]=newPdfAt})}
-    pruneCrew();save();if(first){view=mkey(first);weekHint=first}render();
+    pruneCrew();save();if(first){view=mkey(first);weekHint=first}render();showBanner();
     $('ovI').classList.remove('on');resetPdfUi();
-    toast([add?'Aggiunti '+add:'',upd?'aggiornati '+upd:'',fill?'sala, squadra o evento aggiunti a '+fill:'',skip?'saltati '+skip+' in giorni liberi':'',del?(del===1?'rimosso 1 turno non più presente':'rimossi '+del+' turni non più presenti'):''].filter(Boolean).join(', '));
+    toast([add?'Aggiunti '+add:'',upd?'aggiornati '+upd:'',fill?'sala, squadra o evento aggiornati a '+fill:'',skip?'saltati '+skip+' in giorni liberi':'',del?(del===1?'rimosso 1 turno non più presente':'rimossi '+del+' turni non più presenti'):''].filter(Boolean).join(', '));
   }
   function step2(skipAbs){applyImport(skipAbs,true)}
   $('iPdfGo').onclick=function(){
@@ -1712,7 +1792,8 @@ function pdfGeometry(opList,OPS){
   function snapshot(){
     var c=JSON.parse(JSON.stringify(S));
     c.entries.forEach(function(e){delete e.crew;delete e.evento;delete e.others});
-    delete c.cov;delete c.agDone;delete c.pdfw;
+    delete c.cov;delete c.agDone;delete c.pdfw;delete c.chg;
+    c.entries.forEach(function(e){delete e.chg});
     return JSON.stringify(Object.assign({app:'ore-auditorium',versione:APP_VERSION,exportedAt:new Date().toISOString()},c));
   }
   function lastBackupTxt(){
@@ -2119,6 +2200,10 @@ function pdfGeometry(opList,OPS){
     var ad=addDays(todayStr(),-60),adc=false;
     Object.keys(S.agDone||{}).forEach(function(k){if(String(S.agDone[k])<ad){delete S.agDone[k];adc=true}});
     Object.keys(S.pdfw||{}).forEach(function(k){if(k<ad){delete S.pdfw[k];adc=true}});
+    var tdy=todayStr(),nc0=(S.chg||[]).length;
+    S.chg=(S.chg||[]).filter(function(c){return c.d>=tdy});
+    if(S.chg.length!==nc0)ch=true;
+    S.entries.forEach(function(e){if(e.chg&&e.date<tdy){delete e.chg;ch=true}});
     if(adc)ch=true;
     var cc=addDays(todayStr(),-60),before=(S.cov||[]).length;
     S.cov=(S.cov||[]).filter(function(r){return r[1]>=cc});
@@ -2521,8 +2606,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=45,APP_DATE='5 ottobre 2026';
+  var APP_VERSION=46,APP_DATE='6 ottobre 2026';
   var APP_LOG=[
+    [46,'Cambi di turno: l\'anteprima mostra cosa cambia per te, resta un avviso finché non lo leggi e i turni cambiati sono segnati; la sala del PDF ora si applica sempre'],
     [45,'Verifica aggiornamenti: riconosce le convocazioni già importate e legge i nomi dei file con spazi e mesi per esteso'],
     [44,'Verifica aggiornamenti: si può provare su un solo dispositivo con ?agg=…'],
     [43,'Verifica aggiornamenti: importa le convocazioni arrivate nella casella dedicata, dopo la tua conferma'],
@@ -2612,6 +2698,7 @@ function pdfGeometry(opList,OPS){
     var list=m.s.slice().sort(function(a,b){return a.start<b.start?-1:1});
     list.forEach(function(e){
       var dm=dur(e),isP=!conf(e),vi=varInfo(e),sub=[];
+      if(e.chg)sub.push('<small class="chgt">'+(e.chg==='nuovo turno'?'Nuovo turno':'Cambiato · prima '+esc(e.chg))+'</small>');
       if(vi)sub.push(vi.html);
       if(isP)sub.push('<small class="pv">previsto, da confermare</small>');
       var other=[];if(e.place&&e.place!=='Auditorium')other.push(e.place);if(e.note)other.push(e.note);
@@ -2761,6 +2848,10 @@ function pdfGeometry(opList,OPS){
       var sn=(S.settings.surname||'').trim();
       html=sn?'<b>Il cognome usato per leggere i PDF è '+esc(sn)+'.</b> È il tuo? Serve per importare i tuoi turni e non quelli di un collega.<br><button type="button" id="stYes">Sì, è il mio</button> <button type="button" id="stNo">No, lo cambio</button>'
              :'<b>Scrivi il tuo cognome.</b> Serve per leggere dai PDF i tuoi turni.<br><button type="button" id="stNo">Imposta il cognome</button>';
+    }else if((S.chg||[]).length){
+      cls='chgb';
+      var nch=S.chg.length;
+      html='<b>Ci sono cambi nei tuoi turni.</b> L\'ultimo aggiornamento degli orari ha modificato '+nch+(nch===1?' turno':' turni')+' che ti riguardano.<br><button type="button" id="stCh">Vedi cosa è cambiato</button> <button type="button" id="stChRead">Ho letto</button>';
     }else if(agNews.length&&!agSnooze){
       cls='warn';
       var an=agNews[agNews.length-1],al=agLabel(an.p);
@@ -2774,6 +2865,9 @@ function pdfGeometry(opList,OPS){
     }
     if(!html){b.style.display='none';return}
     b.className='stb '+cls;b.innerHTML=html;b.style.display='';
+    var sch=$('stCh'),schr=$('stChRead');
+    if(sch)sch.onclick=chOpen;
+    if(schr)schr.onclick=chRead;
     var ag=$('stAg'),agl=$('stAgLater');
     if(ag)ag.onclick=function(){b.style.display='none';$('import').click();setTimeout(function(){$('agCheck').click()},60)};
     if(agl)agl.onclick=function(){agSnooze=true;b.style.display='none'};
