@@ -2428,7 +2428,7 @@ function pdfGeometry(opList,OPS){
   function schDays(d){var f=d[0].split('-'),l=d[d.length-1].split('-');return d.length===1?(+f[2])+' '+AG_MESN[+f[1]-1]:(+f[2])+(f[1]===l[1]?'':' '+AG_MESN[+f[1]-1])+' – '+(+l[2])+' '+AG_MESN[+l[1]-1]}
   function schedaLoad(k){
     var e=S.entries.find(function(x){return x.id===schCur}),m=e?schedeFor(e):[],i=m[k],box=$('scA'+k);if(!i||!box)return;
-    function pronto(url){box.innerHTML='<a class="btn pri sm" href="'+url+'" target="_blank" rel="noopener" download="'+esc(i.x.name)+'">Apri la scheda</a>'}
+    function pronto(url){box.innerHTML='<a class="btn pri sm" href="'+url+'" target="_blank" rel="noopener">Apri la scheda</a>'}
     if(schBlob[i.x.id]){pronto(schBlob[i.x.id]);return}
     box.innerHTML='<small>Scarico…</small>';
     agCall('action=get&id='+encodeURIComponent(i.x.id),90000).then(function(r){
