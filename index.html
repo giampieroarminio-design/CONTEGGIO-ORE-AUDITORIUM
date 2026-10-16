@@ -70,8 +70,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .dt{font-size:13px;color:var(--mute);font-weight:600}
 .row{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;padding:8px 16px;min-height:52px}
 .t{font-weight:600}
-.t small{display:block;font-weight:400;color:var(--mute);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
-.h{font-weight:700;font-size:17px}
+.t small{display:block;font-weight:400;color:var(--mute);font-size:13px;overflow-wrap:anywhere}
+.h{font-weight:700;font-size:17px;white-space:nowrap;flex:none}
 .h.open{color:var(--warn);font-size:14px}
 .rw{display:flex;align-items:center}
 .rw .row{flex:1;min-width:0}
@@ -201,6 +201,11 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .dcard.st-b{border-color:var(--acc)}
 .dcard.st-g{border-color:var(--pos)}
 .dcard.st-o{border-color:var(--sun)}
+.dcard .acts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:2px 16px 14px}
+.dcard .acts>button{width:100%;margin:0;min-height:44px;padding:0 8px;font-size:15px;overflow-wrap:anywhere}
+.dcard .acts>button:last-child:nth-child(odd){grid-column:1/-1}
+.dcard .acap{padding:8px 16px 6px;font-size:13px;font-weight:700;color:var(--mute)}
+.dcard .scb{border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-weight:600}
 .dcard .dn0{padding:12px 16px;color:var(--mute);font-size:14px}
 .dcard .dnote{padding:8px 16px 0;font-size:13px;font-weight:700}
 .dcard .rw{border-bottom:1px solid var(--line)}
@@ -746,8 +751,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
         if(e.note)other.push(e.note);
         var right=dm==null?'<span class="h open">in corso</span>':'<span class="h num'+(isSun(e.date)&&!holidayName(e.date)?' sunv':'')+(vi?' '+vi.cls:'')+'">'+fmt(dm)+'</span>';
         return '<div class="rw'+(isP?' plan':'')+'"><button class="row" data-id="'+e.id+'">'+
-          '<span class="t num">'+e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(other.length?'<small>'+esc(other.join(' · '))+'</small>':'')+sub.join('')+'</span>'+right+'</button>'+
-          (isP||(e.crew&&e.crew.length)||e.evento?'<div class="rb">'+(isP?'<button class="okb" data-ok="'+e.id+'">Conferma</button>':'')+(e.crew&&e.crew.length?'<button type="button" class="sqb" data-sq="'+e.id+'">Squadra</button>':'')+(e.evento?'<button type="button" class="evb" data-ev="'+e.id+'">Evento</button>':'')+'</div>':'')+'</div>';
+          '<span class="t num">'+e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(other.length?'<small>'+esc(other.join(' · '))+'</small>':'')+sub.join('')+'</span>'+right+'</button></div>';
       }).join('');
       return '<div class="day"><div class="dh"><span class="d'+(isSun(date)&&!holidayName(date)?' sunv':'')+'">'+wd+' '+d.getDate()+'</span>'+
         (nc>1?'<span class="dt num">Totale '+fmt(tot)+'</span>':'')+'</div>'+rows+
@@ -2392,6 +2396,8 @@ function pdfGeometry(opList,OPS){
     });
     return p;
   }
+  /* le convocazioni da importare si ricalcolano ogni volta: dopo un'importazione non restano nell'elenco */
+  function agPending(){return agNews.filter(function(x){return !(S.agDone||{})[x.name]})}
   function agMark(name){
     if(!name)return;
     if(!S.agDone)S.agDone={};
@@ -2606,8 +2612,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=46,APP_DATE='6 ottobre 2026';
+  var APP_VERSION=47,APP_DATE='16 ottobre 2026';
   var APP_LOG=[
+    [47,'Elenco dei turni solo con le informazioni; pulsanti Conferma, Squadra ed Evento in un riquadro sotto il giorno scelto sulla ruota (pronto il posto per Scheda evento); corretto l\'avviso giallo che restava dopo l\'importazione'],
     [46,'Cambi di turno: l\'anteprima mostra cosa cambia per te, resta un avviso finché non lo leggi e i turni cambiati sono segnati; la sala del PDF ora si applica sempre'],
     [45,'Verifica aggiornamenti: riconosce le convocazioni già importate e legge i nomi dei file con spazi e mesi per esteso'],
     [44,'Verifica aggiornamenti: si può provare su un solo dispositivo con ?agg=…'],
@@ -2688,6 +2695,8 @@ function pdfGeometry(opList,OPS){
     wNodes.forEach(function(n){n.di=null});
     wDraw();
   }
+  /* quarto pulsante "Scheda evento": posto già pronto nel riquadro, si accende quando c'è la funzione */
+  var SCHEDA_ON=false;
   function wInfo(){
     var d=wSel,m=wMap[d]||{s:[],a:[]},hn=holidayName(d);
     $('dwday').className='dcard st-'+wStatus(m);
@@ -2703,8 +2712,8 @@ function pdfGeometry(opList,OPS){
       if(isP)sub.push('<small class="pv">previsto, da confermare</small>');
       var other=[];if(e.place&&e.place!=='Auditorium')other.push(e.place);if(e.note)other.push(e.note);
       var right=dm==null?'<span class="h open">in corso</span>':'<span class="h num'+(vi?' '+vi.cls:'')+'">'+fmt(dm)+'</span>';
-      var acts=(isP?'<button class="okb" data-ok="'+e.id+'">Conferma</button>':'')+(e.crew&&e.crew.length?'<button type="button" class="sqb" data-sq="'+e.id+'">Squadra</button>':'')+(e.evento?'<button type="button" class="evb" data-ev="'+e.id+'">Evento</button>':'');
-      h+='<div class="rw'+(isP?' plan':'')+'"><button class="row" data-id="'+e.id+'"><span class="t num">'+e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(other.length?'<small>'+esc(other.join(' · '))+'</small>':'')+sub.join('')+'</span>'+right+'</button>'+(acts?'<div class="rb">'+acts+'</div>':'')+'</div>';
+      var acts=(isP?'<button class="okb" data-ok="'+e.id+'">Conferma</button>':'')+(e.crew&&e.crew.length?'<button type="button" class="sqb" data-sq="'+e.id+'">Squadra</button>':'')+(e.evento?'<button type="button" class="evb" data-ev="'+e.id+'">Evento</button>':'')+(SCHEDA_ON&&e.evento?'<button type="button" class="scb" data-sc="'+e.id+'">Scheda evento</button>':'');
+      h+='<div class="rw'+(isP?' plan':'')+'"><button class="row" data-id="'+e.id+'"><span class="t num">'+e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(other.length?'<small>'+esc(other.join(' · '))+'</small>':'')+sub.join('')+'</span>'+right+'</button></div>'+(acts?(list.length>1?'<div class="acap">Turno '+e.start+' – '+(e.end||'…')+'</div>':'')+'<div class="acts">'+acts+'</div>':'');
     });
     m.a.forEach(function(a){
       h+='<div class="rw"><span class="t" style="padding:12px 16px;color:var(--acc);font-weight:700;display:block">Assenza concordata · '+esc(ABS[a.type])+(a.count&&a.min?' <small style="font-weight:600;color:var(--mute)">conteggiata '+fmt(a.min)+'</small>':'')+'</span></div>';
@@ -2852,10 +2861,11 @@ function pdfGeometry(opList,OPS){
       cls='chgb';
       var nch=S.chg.length;
       html='<b>Ci sono cambi nei tuoi turni.</b> L\'ultimo aggiornamento degli orari ha modificato '+nch+(nch===1?' turno':' turni')+' che ti riguardano.<br><button type="button" id="stCh">Vedi cosa è cambiato</button> <button type="button" id="stChRead">Ho letto</button>';
-    }else if(agNews.length&&!agSnooze){
+    }else if(agPending().length&&!agSnooze){
       cls='warn';
-      var an=agNews[agNews.length-1],al=agLabel(an.p);
-      html='<b>'+(agNews.length===1?'C\'è un aggiornamento delle convocazioni':'Ci sono '+agNews.length+' aggiornamenti delle convocazioni')+'</b>'+(agNews.length===1?' ('+(al?'settimana '+esc(al)+', ':'')+(an.p.ver?'versione '+an.p.ver:esc(an.name))+')':'')+'.<br><button type="button" id="stAg">Verifica</button> <button type="button" id="stAgLater">Più tardi</button>';
+      var pend=agPending();
+      var an=pend[pend.length-1],al=agLabel(an.p);
+      html='<b>'+(pend.length===1?'C\'è un aggiornamento delle convocazioni':'Ci sono '+pend.length+' aggiornamenti delle convocazioni')+'</b>'+(pend.length===1?' ('+(al?'settimana '+esc(al)+', ':'')+(an.p.ver?'versione '+an.p.ver:esc(an.name))+')':'')+'.<br><button type="button" id="stAg">Verifica</button> <button type="button" id="stAgLater">Più tardi</button>';
     }else if(backupDue()){
       cls='warn';
       var lb=S.settings.lastBackup;
