@@ -204,6 +204,9 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .dcard .acts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:2px 16px 14px}
 .dcard .acts>button{width:100%;margin:0;min-height:44px;padding:0 8px;font-size:15px;overflow-wrap:anywhere}
 .dcard .acts>button:last-child:nth-child(odd){grid-column:1/-1}
+.dcard .asc{padding:0 16px 12px;font-size:12px;color:var(--mute)}
+.dcard .scb.cerca{color:var(--mute)}
+.dcard .scb:disabled{opacity:.6}
 .dcard .acap{padding:8px 16px 6px;font-size:13px;font-weight:700;color:var(--mute)}
 .dcard .scb{border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-weight:600}
 .dcard .dn0{padding:12px 16px;color:var(--mute);font-size:14px}
@@ -550,6 +553,14 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <div class="act"><button class="btn full" id="qClose">Chiudi</button></div>
 </div></div>
 
+<!-- Scheda evento -->
+<div class="ov" id="ovSc"><div class="sheet">
+  <div class="shd"><div id="scHead"></div><button type="button" class="xb" id="scX" aria-label="Chiudi la scheda evento">✕</button></div>
+  <div id="scBody"></div>
+  <p class="hint">La scheda si apre nel lettore del telefono: da lì puoi anche scaricarla.</p>
+  <div class="act"><button class="btn full" id="scClose">Chiudi</button></div>
+</div></div>
+
 <!-- Evento -->
 <div class="ov" id="ovEv"><div class="sheet">
   <div class="shd"><div id="evHead"></div><button type="button" class="xb" id="evX" aria-label="Chiudi l'evento">✕</button></div>
@@ -825,6 +836,8 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     save();closeE();render();toast('Turno eliminato');
   };
   $('list').onclick=function(ev){
+    var scb=ev.target.closest('.scb');
+    if(scb){schedaClick(scb.getAttribute('data-sc'));return}
     var sq=ev.target.closest('.sqb');
     if(sq){openSquadra(sq.getAttribute('data-sq'));return}
     var evb=ev.target.closest('.evb');
@@ -2323,6 +2336,107 @@ function pdfGeometry(opList,OPS){
 
   /* --- aggiornamenti delle convocazioni: l'app chiede alla casella dedicata quali PDF sono arrivati --- */
   var AG_AT=KEY+'.aggAt',AG_LINK=KEY+'.agg',AG_MAN=KEY+'.aggM',agFile='',agLink='',agItems=[],agNews=[],agSnooze=false,agBusy=false;
+  /* --- schede evento (v48): elenco dalla casella, abbinato per giorno + nome dell'evento (+ sala) --- */
+  var SCH_KEY=KEY+'.sch',schItems=[],schAt=0,schErr='',schBusy=false,schBlob={},schCur=null;
+  try{var schR=JSON.parse(localStorage.getItem(SCH_KEY)||'null');if(schR&&Array.isArray(schR.items)){schItems=schR.items;schAt=schR.at||0}}catch(e){}
+  var SCH_SALE=[['SANTA CECILIA','SC'],['2800','SC'],['SINOPOLI','SI'],['1200','SI'],['PETRASSI','PE'],['700','PE'],['TEATRO STUDIO','TS'],['STUDIO BORGNA','TS'],['BORGNA','TS'],['300','TS'],['CASA DEL JAZZ','CDJ'],['CDJ','CDJ'],['MASSENZIO','CAV'],['CAVEA','CAV']];
+  var SCH_SKIP=['SALA','SOCIETA','ITALIANA','CONGRESSO','NAZIONALE','DEL','DELLA','DEI','PER','THE','TRIO','LIVE','SUMMERTIME','CONCERTO','PROVE','SOUND','CHECK','CASA','JAZZ','CDJ','CNP','STAGIONE','ESTIVA','INFO','HALL'];
+  function schNorm(s){var t=String(s||'').toUpperCase();if(t.normalize)t=t.normalize('NFD').replace(/[\u0300-\u036f]/g,'');return t.replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim()}
+  function schSalaPos(n){var best=null;SCH_SALE.forEach(function(k){var m=new RegExp('(^| )'+k[0]+'( |$)').exec(n);if(m){var i=m.index+(m[1]?1:0);if(!best||i<best.i)best={i:i,len:k[0].length,c:k[1]}}});return best}
+  function schCanon(x){var b=schSalaPos(schNorm(x));return b?b.c:schNorm(x)}
+  function schParole(s){return schNorm(s).split(' ').filter(function(w){return w.length>2&&!/^\d+$/.test(w)&&SCH_SKIP.indexOf(w)<0})}
+  function schEq(a,b){return a===b||(a.length>=5&&b.length>=5&&a.slice(0,5)===b.slice(0,5))}
+  function schedaParse(nome){
+    var n=String(nome||'').replace(/\.pdf$/i,'').replace(/_/g,' ').replace(/\s+/g,' ').trim();
+    var m=n.match(/^(\d{1,2}(?: ?- ?\d{1,2})*) (\d{1,2}) (\d{2}|\d{4}) (.+)$/);
+    if(!m||/convocazion/i.test(n))return null;
+    var t=m[1].split(/ ?- ?/).map(Number),mese=+m[2],anno=+m[3]<100?2000+(+m[3]):+m[3],dates=[];
+    if(mese<1||mese>12)return null;
+    function ds2(y,mo,d){return y+'-'+pad(mo)+'-'+pad(d)}
+    if(t.length===2&&t[1]>t[0]){for(var d=t[0];d<=t[1];d++)dates.push(ds2(anno,mese,d))}
+    else if(t.length===2&&t[1]<t[0]){var last=new Date(anno,mese,0).getDate(),ny=mese===12?anno+1:anno,nm=mese===12?1:mese+1;for(var a=t[0];a<=last;a++)dates.push(ds2(anno,mese,a));for(var b=1;b<=t[1];b++)dates.push(ds2(ny,nm,b))}
+    else dates=t.map(function(d){return ds2(anno,mese,d)});
+    var rest=schNorm(m[4]),sp=schSalaPos(rest),cl=sp?rest.slice(0,sp.i):rest;
+    cl=cl.replace(/\bSALA\s*$/,'').replace(/^ST\b\s*/,'').trim();
+    if(!schParole(cl).length&&sp)cl=rest.slice(sp.i+sp.len).replace(/^ST\b\s*/,'').trim();
+    return {date:dates,sala:sp?sp.c:null,cliente:cl,ver:/\bBIS\b/.test(rest)?2:(/\bTER\b/.test(rest)?3:1)};
+  }
+  /* schede che riguardano un turno: giorno obbligatorio; il nome dell'evento è la prova forte, la sala un rinforzo */
+  function schedeFor(e){
+    if(!e||!e.date||e.date<todayStr())return [];   // le schede servono per i giorni a venire: oggi compreso, passato no
+    var first=String(e.evento||'').split('\n')[0],pw=schParole(first);
+    if(!pw.length)pw=schParole(e.evento||'');
+    var out=[],by={};
+    (schItems||[]).forEach(function(x){
+      var s=schedaParse(x.name);if(!s||s.date.indexOf(e.date)<0)return;
+      var ev=schParole(s.cliente).some(function(w){return pw.some(function(p){return schEq(p,w)})});
+      var sa=(!s.sala||!e.sala)?null:(s.sala===schCanon(e.sala));
+      var g=ev&&sa!==false?0:(sa===true&&!pw.length?1:(sa===true?2:(ev?1:-1)));
+      if(g<0)return;
+      var k=s.cliente+'|'+s.sala+'|'+s.date.join(),it={x:x,s:s,g:g},b=by[k];
+      if(!b||s.ver>b.s.ver||(s.ver===b.s.ver&&String(x.date)>String(b.x.date)))by[k]=it;
+    });
+    Object.keys(by).forEach(function(k){out.push(by[k])});
+    var certe=out.filter(function(i){return i.g===0});
+    return (certe.length?certe:out).sort(function(a,b){return a.g-b.g});
+  }
+  function schRefresh(fresh){
+    if(!agLink||schBusy)return Promise.resolve();
+    schBusy=true;try{wInfo()}catch(e){}
+    return agCall('action=schede'+(fresh?'&fresh=1':''),30000).then(function(r){
+      if(!r||!r.ok||!Array.isArray(r.items))throw new Error('risposta');
+      if(!r.at){schErr='vecchio';return}
+      var oggi=todayStr();
+      schItems=r.items.filter(function(x){var q=schedaParse(x.name);return q&&q.date[q.date.length-1]>=oggi}).map(function(x){return {id:x.id,name:x.name,date:x.date}});schAt=Date.now();schErr='';
+      try{localStorage.setItem(SCH_KEY,JSON.stringify({items:schItems,at:schAt}))}catch(e){}
+    }).catch(function(){schErr='rete'}).then(function(){schBusy=false;try{wInfo()}catch(e){}});
+  }
+  function schAuto(){if(agLink&&Date.now()-schAt>3600*1000)schRefresh(false)}
+  function schStato(){
+    if(schBusy)return 'Controllo le schede…';
+    if(schErr==='vecchio')return 'Lo script della casella non è aggiornato: le schede non si possono cercare.';
+    if(schErr==='rete')return 'Controllo delle schede non riuscito: premi "Cerca scheda" per riprovare.';
+    if(!schAt)return 'Schede non ancora controllate: premi "Cerca scheda".';
+    var d=new Date(schAt),oggi=new Date().toDateString()===d.toDateString();
+    return 'Schede controllate '+(oggi?'oggi':'il '+d.toLocaleDateString('it-IT',{day:'numeric',month:'long'}))+' alle '+pad(d.getHours())+':'+pad(d.getMinutes())+'.';
+  }
+  function schedaBtn(e){
+    if(!agLink||e.date<todayStr())return '';
+    var has=schedeFor(e).length>0;
+    return '<button type="button" class="scb'+(has?'':' cerca')+'" data-sc="'+e.id+'"'+(schBusy?' disabled':'')+'>'+(schBusy&&!has?'Cerco…':(has?'Scheda evento':'Cerca scheda'))+'</button>';
+  }
+  function schedaClick(id){
+    var e=S.entries.find(function(x){return x.id===id});if(!e||schBusy)return;
+    if(schedeFor(e).length){schedaShow(e);return}
+    schRefresh(true).then(function(){
+      if(schErr==='vecchio'){toast('Lo script della casella non è aggiornato');return}
+      if(schErr){toast('Non riesco a collegarmi. Riprova tra poco');return}
+      if(schedeFor(e).length)schedaShow(e);else toast('Nessuna scheda arrivata per questo giorno');
+    });
+  }
+  function schedaShow(e){
+    schCur=e.id;var m=schedeFor(e);
+    $('scHead').innerHTML='<div style="font-size:18px;font-weight:800">Scheda evento'+(e.sala?' · '+esc(e.sala):'')+'</div>'+
+      '<div class="hint" style="margin:2px 0 0">'+esc(dLabel(e.date,{weekday:'long',day:'numeric',month:'long'}))+'</div>';
+    $('scBody').innerHTML=m.map(function(i,k){
+      var g=schDays(i.s.date);
+      return '<div class="agr"><span><b>'+esc(i.s.cliente||i.x.name)+'</b><small>'+esc(g)+(i.g===0?'':' · da verificare')+'</small></span><span id="scA'+k+'"><button type="button" class="btn sm" data-sx="'+k+'">Scarica e apri</button></span></div>';
+    }).join('');
+    $('ovSc').classList.add('on');
+    if(m.length===1)schedaLoad(0);
+  }
+  function schDays(d){var f=d[0].split('-'),l=d[d.length-1].split('-');return d.length===1?(+f[2])+' '+AG_MESN[+f[1]-1]:(+f[2])+(f[1]===l[1]?'':' '+AG_MESN[+f[1]-1])+' – '+(+l[2])+' '+AG_MESN[+l[1]-1]}
+  function schedaLoad(k){
+    var e=S.entries.find(function(x){return x.id===schCur}),m=e?schedeFor(e):[],i=m[k],box=$('scA'+k);if(!i||!box)return;
+    function pronto(url){box.innerHTML='<a class="btn pri sm" href="'+url+'" target="_blank" rel="noopener" download="'+esc(i.x.name)+'">Apri la scheda</a>'}
+    if(schBlob[i.x.id]){pronto(schBlob[i.x.id]);return}
+    box.innerHTML='<small>Scarico…</small>';
+    agCall('action=get&id='+encodeURIComponent(i.x.id),90000).then(function(r){
+      if(!r||!r.ok||!r.data)throw new Error('risposta');
+      var bin=atob(r.data),u=new Uint8Array(bin.length);for(var q=0;q<bin.length;q++)u[q]=bin.charCodeAt(q);
+      schBlob[i.x.id]=URL.createObjectURL(new Blob([u],{type:'application/pdf'}));pronto(schBlob[i.x.id]);
+    }).catch(function(){box.innerHTML='<button type="button" class="btn sm" data-sx="'+k+'">Riprova</button><small style="display:block;color:var(--warn)">Non riesco a scaricarla.</small>'});
+  }
   var AG_MES={gen:0,feb:1,mar:2,apr:3,mag:4,giu:5,lug:6,ago:7,set:8,ott:9,nov:10,dic:11};
   var AG_MESN=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
   function agParse(name){
@@ -2437,7 +2551,7 @@ function pdfGeometry(opList,OPS){
     }catch(e){}
     try{agFile=localStorage.getItem(AG_LINK)||''}catch(e){}
     agSet();agUi();
-    if(typeof fetch!=='function'){if(agLink)agAuto();return}
+    if(typeof fetch!=='function'){if(agLink){agAuto();schAuto()}return}
     fetch('aggiornamenti.txt?'+Date.now(),{cache:'no-store'}).then(function(r){
       if(r.status===404){agFile='';try{localStorage.removeItem(AG_LINK)}catch(e){}return null}
       if(!r.ok)throw new Error('rete');
@@ -2447,7 +2561,7 @@ function pdfGeometry(opList,OPS){
       var l=String(t||'').split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean)[0]||'';
       if(/^https:\/\/[^\s]+$/i.test(l)){agFile=l;try{localStorage.setItem(AG_LINK,l)}catch(e){}}
       else{agFile='';try{localStorage.removeItem(AG_LINK)}catch(e){}}
-    }).catch(function(){}).then(function(){agSet();agUi();if(agLink)agAuto()});
+    }).catch(function(){}).then(function(){agSet();agUi();if(agLink){agAuto();schAuto()}});
   }
   function agAuto(){
     var last=0;try{last=+localStorage.getItem(AG_AT)||0}catch(e){}
@@ -2516,6 +2630,8 @@ function pdfGeometry(opList,OPS){
   }
   $('evClose').onclick=function(){$('ovEv').classList.remove('on')};
   $('evX').onclick=function(){$('ovEv').classList.remove('on')};
+  $('scX').onclick=$('scClose').onclick=function(){$('ovSc').classList.remove('on')};
+  $('scBody').onclick=function(ev){var b=ev.target.closest('button[data-sx]');if(b)schedaLoad(+b.getAttribute('data-sx'))};
 
   /* --- memoria dell'app --- */
   function kb(n){return (n/1024).toLocaleString('it-IT',{minimumFractionDigits:1,maximumFractionDigits:1})+' KB'}
@@ -2612,8 +2728,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=47,APP_DATE='16 ottobre 2026';
+  var APP_VERSION=48,APP_DATE='16 ottobre 2026';
   var APP_LOG=[
+    [48,'Pulsante "Scheda evento" (o "Cerca scheda") nel riquadro del giorno: le schede tecniche arrivate nella casella si abbinano per giorno e nome dell\'evento e si aprono nel lettore del telefono'],
     [47,'Elenco dei turni solo con le informazioni; pulsanti Conferma, Squadra ed Evento in un riquadro sotto il giorno scelto sulla ruota (pronto il posto per Scheda evento); corretto l\'avviso giallo che restava dopo l\'importazione'],
     [46,'Cambi di turno: l\'anteprima mostra cosa cambia per te, resta un avviso finché non lo leggi e i turni cambiati sono segnati; la sala del PDF ora si applica sempre'],
     [45,'Verifica aggiornamenti: riconosce le convocazioni già importate e legge i nomi dei file con spazi e mesi per esteso'],
@@ -2695,8 +2812,6 @@ function pdfGeometry(opList,OPS){
     wNodes.forEach(function(n){n.di=null});
     wDraw();
   }
-  /* quarto pulsante "Scheda evento": posto già pronto nel riquadro, si accende quando c'è la funzione */
-  var SCHEDA_ON=false;
   function wInfo(){
     var d=wSel,m=wMap[d]||{s:[],a:[]},hn=holidayName(d);
     $('dwday').className='dcard st-'+wStatus(m);
@@ -2712,12 +2827,13 @@ function pdfGeometry(opList,OPS){
       if(isP)sub.push('<small class="pv">previsto, da confermare</small>');
       var other=[];if(e.place&&e.place!=='Auditorium')other.push(e.place);if(e.note)other.push(e.note);
       var right=dm==null?'<span class="h open">in corso</span>':'<span class="h num'+(vi?' '+vi.cls:'')+'">'+fmt(dm)+'</span>';
-      var acts=(isP?'<button class="okb" data-ok="'+e.id+'">Conferma</button>':'')+(e.crew&&e.crew.length?'<button type="button" class="sqb" data-sq="'+e.id+'">Squadra</button>':'')+(e.evento?'<button type="button" class="evb" data-ev="'+e.id+'">Evento</button>':'')+(SCHEDA_ON&&e.evento?'<button type="button" class="scb" data-sc="'+e.id+'">Scheda evento</button>':'');
+      var acts=(isP?'<button class="okb" data-ok="'+e.id+'">Conferma</button>':'')+(e.crew&&e.crew.length?'<button type="button" class="sqb" data-sq="'+e.id+'">Squadra</button>':'')+(e.evento?'<button type="button" class="evb" data-ev="'+e.id+'">Evento</button>':'')+schedaBtn(e);
       h+='<div class="rw'+(isP?' plan':'')+'"><button class="row" data-id="'+e.id+'"><span class="t num">'+e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(other.length?'<small>'+esc(other.join(' · '))+'</small>':'')+sub.join('')+'</span>'+right+'</button></div>'+(acts?(list.length>1?'<div class="acap">Turno '+e.start+' – '+(e.end||'…')+'</div>':'')+'<div class="acts">'+acts+'</div>':'');
     });
     m.a.forEach(function(a){
       h+='<div class="rw"><span class="t" style="padding:12px 16px;color:var(--acc);font-weight:700;display:block">Assenza concordata · '+esc(ABS[a.type])+(a.count&&a.min?' <small style="font-weight:600;color:var(--mute)">conteggiata '+fmt(a.min)+'</small>':'')+'</span></div>';
     });
+    if(list.length&&agLink&&d>=todayStr())h+='<div class="asc">'+esc(schStato())+'</div>';
     if(!list.length&&!m.a.length)h+='<div class="dn0">Nessun turno in questo giorno.</div>';
     h+='<button class="addday" data-date="'+d+'">+ Aggiungi un turno</button>';
     $('dwday').innerHTML=h;
