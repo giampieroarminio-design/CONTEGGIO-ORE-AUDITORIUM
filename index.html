@@ -2531,7 +2531,8 @@ function pdfGeometry(opList,OPS){
   function agCall(params,ms){
     var url=agLink+(agLink.indexOf('?')>=0?'&':'?')+params;
     if(typeof fetch!=='function')return agJsonp(url,ms);
-    return fetch(url).then(function(r){if(!r.ok)throw new Error('http');return r.json()}).catch(function(){return agJsonp(url,ms)});
+    var ac=(typeof AbortController==='function')?new AbortController():null,tm=ac?setTimeout(function(){ac.abort()},ms||60000):0;
+    return fetch(url,ac?{signal:ac.signal}:undefined).then(function(r){clearTimeout(tm);if(!r.ok)throw new Error('http');return r.json()}).catch(function(){clearTimeout(tm);return agJsonp(url,ms)});
   }
   function agUi(){var b=$('agBox');if(b)b.style.display=agLink?'':'none'}
   function agSet(){
@@ -2551,7 +2552,7 @@ function pdfGeometry(opList,OPS){
     }catch(e){}
     try{agFile=localStorage.getItem(AG_LINK)||''}catch(e){}
     agSet();agUi();
-    if(typeof fetch!=='function'){if(agLink){agAuto();schAuto()}return}
+    if(typeof fetch!=='function'){if(agLink){agAuto().then(schAuto)}return}
     fetch('aggiornamenti.txt?'+Date.now(),{cache:'no-store'}).then(function(r){
       if(r.status===404){agFile='';try{localStorage.removeItem(AG_LINK)}catch(e){}return null}
       if(!r.ok)throw new Error('rete');
@@ -2561,17 +2562,17 @@ function pdfGeometry(opList,OPS){
       var l=String(t||'').split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean)[0]||'';
       if(/^https:\/\/[^\s]+$/i.test(l)){agFile=l;try{localStorage.setItem(AG_LINK,l)}catch(e){}}
       else{agFile='';try{localStorage.removeItem(AG_LINK)}catch(e){}}
-    }).catch(function(){}).then(function(){agSet();agUi();if(agLink){agAuto();schAuto()}});
+    }).catch(function(){}).then(function(){agSet();agUi();if(agLink){agAuto().then(schAuto)}});
   }
   function agAuto(){
     var last=0;try{last=+localStorage.getItem(AG_AT)||0}catch(e){}
-    if(Date.now()-last<3*3600*1000)return;
-    agCall('action=list').then(function(r){
+    if(Date.now()-last<3*3600*1000)return Promise.resolve();
+    return agCall('action=list').then(function(r){
       try{localStorage.setItem(AG_AT,String(Date.now()))}catch(e){}
       if(!r||!r.ok)return;
       var c=agCandidates(r.items||[]);
       if(!c.filter(function(x){return !(S.agDone||{})[x.name]}).length)return;
-      return agDetect(c).then(function(){
+      return agDetect(c).catch(function(){}).then(function(){
         agNews=c.filter(function(x){return !(S.agDone||{})[x.name]});showBanner();
       });
     }).catch(function(){});
@@ -2604,17 +2605,23 @@ function pdfGeometry(opList,OPS){
       });
     }).catch(function(){agBusy=false;agSay('Non riesco a collegarmi per controllare. Riprova tra poco, oppure scegli il PDF a mano qui sotto.')});
   }
-  function agLoad(i){
-    var x=agItems[i];if(!x||agBusy)return;
-    agBusy=true;agSay('Scarico la convocazione…');
-    agCall('action=get&id='+encodeURIComponent(x.id)).then(function(r){
-      agBusy=false;
+  var agLoadT=0;
+  /* "Importa": non resta mai bloccato; se il server è lento riprova da solo e, premendo di nuovo dopo 20 secondi, ricomincia */
+  function agLoad(i,retry){
+    var x=agItems[i];if(!x)return;
+    if(!retry&&agLoadT&&Date.now()-agLoadT<20000){agSay('Sto ancora scaricando, il server di Google è lento. Un attimo…');return}
+    agLoadT=Date.now();
+    agSay(retry?'Il server è lento, riprovo a scaricare…':'Scarico la convocazione… può servire qualche secondo.');
+    agCall('action=get&id='+encodeURIComponent(x.id),60000).then(function(r){
       if(!r||!r.ok||!r.data)throw new Error('risposta');
       var bin=atob(r.data),u=new Uint8Array(bin.length);
       for(var k=0;k<bin.length;k++)u[k]=bin.charCodeAt(k);
-      agSay('');
+      agLoadT=0;agSay('');
       readPdfFile({name:x.name,arrayBuffer:function(){return Promise.resolve(u.buffer)}});
-    }).catch(function(){agBusy=false;agSay('Non riesco a scaricare questa convocazione. Riprova tra poco.')});
+    }).catch(function(){
+      if(!retry){agLoad(i,true);return}
+      agLoadT=0;agSay('Non riesco a scaricare questa convocazione: il server di Google è lento. Aspetta un minuto e premi di nuovo Importa, oppure scegli il PDF a mano qui sotto.');
+    });
   }
   $('agCheck').onclick=agCheck;
   $('agRes').onclick=function(ev){var b=ev.target.closest('button[data-ag]');if(b)agLoad(+b.getAttribute('data-ag'))};
@@ -2728,8 +2735,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=49,APP_DATE='16 ottobre 2026';
+  var APP_VERSION=50,APP_DATE='16 ottobre 2026';
   var APP_LOG=[
+    [50,'Verifica aggiornamenti più affidabile: "Importa" non resta più bloccato se il server di Google è lento (riprova da solo); l\'avviso giallo compare anche se la lettura di un PDF non riesce; il controllo delle schede parte dopo quello delle convocazioni'],
     [49,'Scheda evento: sotto "Apri la scheda" c\'è anche "Scarica la scheda" per salvare il PDF sul telefono o sul computer'],
     [48,'Pulsante "Scheda evento" (o "Cerca scheda") nel riquadro del giorno: le schede tecniche arrivate nella casella si abbinano per giorno e nome dell\'evento e si aprono nel lettore del telefono'],
     [47,'Elenco dei turni solo con le informazioni; pulsanti Conferma, Squadra ed Evento in un riquadro sotto il giorno scelto sulla ruota (pronto il posto per Scheda evento); corretto l\'avviso giallo che restava dopo l\'importazione'],
