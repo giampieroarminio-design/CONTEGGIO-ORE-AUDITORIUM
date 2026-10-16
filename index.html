@@ -2420,7 +2420,7 @@ function pdfGeometry(opList,OPS){
       '<div class="hint" style="margin:2px 0 0">'+esc(dLabel(e.date,{weekday:'long',day:'numeric',month:'long'}))+'</div>';
     $('scBody').innerHTML=m.map(function(i,k){
       var g=schDays(i.s.date);
-      return '<div class="agr"><span><b>'+esc(i.s.cliente||i.x.name)+'</b><small>'+esc(g)+(i.g===0?'':' · da verificare')+'</small></span><span id="scA'+k+'"><button type="button" class="btn sm" data-sx="'+k+'">Scarica e apri</button></span></div>';
+      return '<div class="agr"><span><b>'+esc(i.s.cliente||i.x.name)+'</b><small>'+esc(g)+(i.g===0?'':' · da verificare')+'</small></span><span id="scA'+k+'" style="display:flex;flex-direction:column;align-items:stretch;text-align:center"><button type="button" class="btn sm" data-sx="'+k+'">Scarica e apri</button></span></div>';
     }).join('');
     $('ovSc').classList.add('on');
     if(m.length===1)schedaLoad(0);
@@ -2428,7 +2428,7 @@ function pdfGeometry(opList,OPS){
   function schDays(d){var f=d[0].split('-'),l=d[d.length-1].split('-');return d.length===1?(+f[2])+' '+AG_MESN[+f[1]-1]:(+f[2])+(f[1]===l[1]?'':' '+AG_MESN[+f[1]-1])+' – '+(+l[2])+' '+AG_MESN[+l[1]-1]}
   function schedaLoad(k){
     var e=S.entries.find(function(x){return x.id===schCur}),m=e?schedeFor(e):[],i=m[k],box=$('scA'+k);if(!i||!box)return;
-    function pronto(url){box.innerHTML='<a class="btn pri sm" href="'+url+'" target="_blank" rel="noopener">Apri la scheda</a>'}
+    function pronto(url){box.innerHTML='<a class="btn pri sm" href="'+url+'" target="_blank" rel="noopener">Apri la scheda</a><a class="btn sm" style="margin-top:8px" href="'+url+'" download="'+esc(i.x.name)+'">Scarica la scheda</a>'}
     if(schBlob[i.x.id]){pronto(schBlob[i.x.id]);return}
     box.innerHTML='<small>Scarico…</small>';
     agCall('action=get&id='+encodeURIComponent(i.x.id),90000).then(function(r){
@@ -2728,8 +2728,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=48,APP_DATE='16 ottobre 2026';
+  var APP_VERSION=49,APP_DATE='16 ottobre 2026';
   var APP_LOG=[
+    [49,'Scheda evento: sotto "Apri la scheda" c\'è anche "Scarica la scheda" per salvare il PDF sul telefono o sul computer'],
     [48,'Pulsante "Scheda evento" (o "Cerca scheda") nel riquadro del giorno: le schede tecniche arrivate nella casella si abbinano per giorno e nome dell\'evento e si aprono nel lettore del telefono'],
     [47,'Elenco dei turni solo con le informazioni; pulsanti Conferma, Squadra ed Evento in un riquadro sotto il giorno scelto sulla ruota (pronto il posto per Scheda evento); corretto l\'avviso giallo che restava dopo l\'importazione'],
     [46,'Cambi di turno: l\'anteprima mostra cosa cambia per te, resta un avviso finché non lo leggi e i turni cambiati sono segnati; la sala del PDF ora si applica sempre'],
