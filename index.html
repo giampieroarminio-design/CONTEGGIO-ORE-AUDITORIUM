@@ -201,9 +201,17 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .dcard.st-b{border-color:var(--acc)}
 .dcard.st-g{border-color:var(--pos)}
 .dcard.st-o{border-color:var(--sun)}
+.rcf{padding:0 16px 12px}
+.rcf .okb{display:block;width:100%;margin:0;min-height:44px;font-size:15px}
+.dcard .rcf{padding-top:2px}
 .dcard .acts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:2px 16px 14px}
 .dcard .acts>button{width:100%;margin:0;min-height:44px;padding:0 8px;font-size:15px;overflow-wrap:anywhere}
 .dcard .acts>button:last-child:nth-child(odd){grid-column:1/-1}
+.sheet a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none;min-height:40px;padding:0 14px;box-sizing:border-box}
+.sheet a.btn:not(.pri){color:var(--ink)}
+.cvb{display:block;width:100%;min-height:44px;padding:0 8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-weight:600;font-size:15px}
+.cvb.cerca{color:var(--mute)}
+.cvb:disabled{opacity:.6}
 .dcard .asc{padding:0 16px 12px;font-size:12px;color:var(--mute)}
 .dcard .scb.cerca{color:var(--mute)}
 .dcard .scb:disabled{opacity:.6}
@@ -375,7 +383,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
 <div class="ov" id="ovI"><div class="sheet">
   <h2>Importa convocazioni</h2>
   <p class="hint" style="margin:0 0 10px">Scegli il PDF che ricevi ogni settimana: l'app cerca il tuo cognome nella colonna e legge giorno, inizio e fine. Il file resta sul telefono e non viene inviato da nessuna parte.</p>
-  <input type="file" id="iFile" accept="application/pdf,.pdf" hidden>
+  <input type="file" id="iFile" accept="application/pdf,.pdf" multiple hidden>
   <div id="agBox" style="display:none;margin:0 0 14px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--bg)">
     <button class="btn pri" id="agCheck" style="width:100%">Verifica aggiornamenti</button>
     <p class="hint" id="agMsg" role="status" style="margin:8px 0 0;font-weight:600;color:var(--ink)"></p>
@@ -386,10 +394,12 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     <button class="btn sm" id="iWhoYes">Sì, è il mio</button>
     <button class="btn sm" id="iWhoNo">No, lo cambio</button>
   </div>
-  <button class="btn pri" id="iPick" style="width:100%">Scegli il PDF</button>
+  <button class="btn pri" id="iPick" style="width:100%">Scegli il PDF (anche più di uno)</button>
+  <div id="iQHead" style="display:none;margin:10px 0 0"></div>
   <p class="hint" id="iMsg" role="status"></p>
   <div class="prev" id="iPrev" style="display:none"></div>
   <button class="btn pri" id="iPdfGo" style="width:100%;margin-top:12px;display:none"></button>
+  <button class="btn" id="iQNext" style="width:100%;margin-top:8px;display:none"></button>
   <details>
     <summary>Oppure incolla il testo</summary>
     <p class="hint" style="margin:0 0 8px">Una riga per giorno, con data e orario previsto. Più turni nello stesso giorno sulla stessa riga. Esempio:</p>
@@ -557,7 +567,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
 <div class="ov" id="ovSc"><div class="sheet">
   <div class="shd"><div id="scHead"></div><button type="button" class="xb" id="scX" aria-label="Chiudi la scheda evento">✕</button></div>
   <div id="scBody"></div>
-  <p class="hint">La scheda si apre nel lettore del telefono: da lì puoi anche scaricarla.</p>
+  <p class="hint" id="scHint">La scheda si apre nel lettore del telefono: da lì puoi anche scaricarla.</p>
   <div class="act"><button class="btn full" id="scClose">Chiudi</button></div>
 </div></div>
 
@@ -762,7 +772,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
         if(e.note)other.push(e.note);
         var right=dm==null?'<span class="h open">in corso</span>':'<span class="h num'+(isSun(e.date)&&!holidayName(e.date)?' sunv':'')+(vi?' '+vi.cls:'')+'">'+fmt(dm)+'</span>';
         return '<div class="rw'+(isP?' plan':'')+'"><button class="row" data-id="'+e.id+'">'+
-          '<span class="t num">'+e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(other.length?'<small>'+esc(other.join(' · '))+'</small>':'')+sub.join('')+'</span>'+right+'</button></div>';
+          '<span class="t num">'+e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(other.length?'<small>'+esc(other.join(' · '))+'</small>':'')+sub.join('')+'</span>'+right+'</button></div>'+(isP?'<div class="rcf"><button type="button" class="okb" data-ok="'+e.id+'">Conferma</button></div>':'');
       }).join('');
       return '<div class="day"><div class="dh"><span class="d'+(isSun(date)&&!holidayName(date)?' sunv':'')+'">'+wd+' '+d.getDate()+'</span>'+
         (nc>1?'<span class="dt num">Totale '+fmt(tot)+'</span>':'')+'</div>'+rows+
@@ -836,6 +846,8 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     save();closeE();render();toast('Turno eliminato');
   };
   $('list').onclick=function(ev){
+    var cvb=ev.target.closest('.cvb');
+    if(cvb){convClick(cvb.getAttribute('data-cv'));return}
     var scb=ev.target.closest('.scb');
     if(scb){schedaClick(scb.getAttribute('data-sc'));return}
     var sq=ev.target.closest('.sqb');
@@ -1500,7 +1512,7 @@ function pdfGeometry(opList,OPS){
   $('chRead').onclick=chRead;
   function renderPrev(){
     var box=$('iPrev'),go=$('iPdfGo');
-    if(!found.length&&!vlist.length&&!vInfo.older&&!vInfo.noShifts){box.style.display='none';go.style.display='none';return}
+    if(!found.length&&!vlist.length&&!vInfo.older&&!vInfo.noShifts){box.style.display='none';go.style.display='none';qBar();return}
     box.innerHTML=chBoxHtml()+found.map(function(r,i){
       var h='<div class="pi"><span class="num">'+fmtDay(r.date)+' &nbsp; '+r.ps+' – '+r.pe+(r.sala?' <em class="sl">'+esc(r.sala)+'</em>':'')+'</span>';
       if(r.warn)h+='<small class="wr">controlla la data</small>';
@@ -1529,6 +1541,7 @@ function pdfGeometry(opList,OPS){
     if(c.cv)parts.push('giorni liberi segnati');
     if(parts.length){go.textContent='Importa: '+parts.join(', ');go.style.display=''}
     else{go.style.display='none';if(newPdfName&&found.length)agMark(newPdfName)}
+    qBar();
   }
   $('iPrev').onclick=function(ev){
     var vb=ev.target.closest('button[data-v]');
@@ -1557,10 +1570,52 @@ function pdfGeometry(opList,OPS){
 
   $('iPick').onclick=function(){$('iFile').click()};
   $('iFile').onchange=function(){
-    var f=this.files&&this.files[0];this.value='';
-    if(!f)return;
-    readPdfFile(f);
+    var fs=[].slice.call(this.files||[]);this.value='';
+    if(!fs.length)return;
+    if(fs.length===1||!(S.settings.surname||'').trim()||!S.settings.surnameOk){qReset();readPdfFile(fs[0]);return}
+    qStart(fs.slice(0,20));
   };
+  /* --- più PDF insieme (v54): per ogni settimana si tiene la versione più recente e si mostra una settimana per volta --- */
+  var Q=null;
+  function qReset(){Q=null;qBar()}
+  function qBar(){
+    var h=$('iQHead'),nx=$('iQNext');
+    if(!Q){h.style.display='none';nx.style.display='none';return}
+    var it=Q.items[Q.idx],last=Q.idx===Q.items.length-1,go=$('iPdfGo').style.display!=='none';
+    h.innerHTML='<div style="font-weight:800">PDF '+(Q.idx+1)+' di '+Q.items.length+(it.label?' · '+esc(it.label):'')+'</div>'+(Q.info?'<div class="hint" style="margin:2px 0 0">'+Q.info+'</div>':'');
+    h.style.display='';nx.style.display='';
+    nx.textContent=last?(go?'Non importare questa e chiudi':'Fine'):(go?'Salta questa settimana':'Avanti');
+  }
+  function qOpen(){readPdfFile(Q.items[Q.idx].f);qBar()}
+  function qNext(){
+    if(!Q)return;
+    if(Q.idx>=Q.items.length-1){qReset();$('ovI').classList.remove('on');return}
+    Q.idx++;qOpen();
+  }
+  $('iQNext').onclick=qNext;
+  function qScanOne(f){
+    return loadPdfJs().then(function(lib){return f.arrayBuffer().then(function(buf){return lib.getDocument({data:new Uint8Array(buf),isEvalSupported:false}).promise})})
+      .then(function(doc){return doc.getMetadata().then(function(m){return parsePdfDate(m&&m.info&&m.info.CreationDate)},function(){return null})}).catch(function(){return null});
+  }
+  function qStart(files){
+    qReset();resetPdfUi();iMsg('Controllo i '+files.length+' file…');
+    Promise.all(files.map(qScanOne)).then(function(ats){
+      var by={},order=[],drop=[];
+      files.forEach(function(f,i){
+        var p=agParse(f.name||''),it={f:f,name:f.name||'',from:p.from,to:p.to,ver:p.ver,at:ats[i]},k=p.from?p.from+'|'+p.to:'n|'+i;
+        it.label=p.from?'settimana '+agLabel(p):it.name;
+        if(!by[k]){by[k]=it;order.push(k);return}
+        var b=by[k],meglio=it.ver>b.ver||(it.ver===b.ver&&String(it.at||'')>String(b.at||''));
+        if(meglio){drop.push(b);by[k]=it}else drop.push(it);
+      });
+      var items=order.map(function(k){return by[k]});
+      items.sort(function(a,b){return String(a.from||'9999')<String(b.from||'9999')?-1:(String(a.from||'9999')>String(b.from||'9999')?1:0)});
+      var info='Per ogni settimana ho preso la versione più recente.'+(drop.length?' Scartati: '+drop.map(function(d){return esc((d.ver?'versione '+d.ver+' ':'')+(agLabel(d)?'('+agLabel(d)+')':d.name))}).join(', ')+'.':'');
+      if(items.length===1&&!drop.length){readPdfFile(items[0].f);return}
+      Q={items:items,idx:0,info:drop.length||items.length>1?info:''};
+      qOpen();
+    });
+  }
   function readPdfFile(f){
     resetPdfUi();iMsg('Lettura del PDF…');newPdfName=f.name||'';
     var surname=S.settings.surname||'';
@@ -1664,8 +1719,11 @@ function pdfGeometry(opList,OPS){
     if(newPdfName)agMark(newPdfName);
     if(newCov.length&&newPdfAt){if(!S.pdfw)S.pdfw={};newCov.forEach(function(d){var k=mondayOf(d);if(!S.pdfw[k]||S.pdfw[k]<newPdfAt)S.pdfw[k]=newPdfAt})}
     pruneCrew();save();if(first){view=mkey(first);weekHint=first}render();showBanner();
-    $('ovI').classList.remove('on');resetPdfUi();
+    var piuPdf=!!(Q&&Q.idx<Q.items.length-1);
+    if(!piuPdf){qReset();$('ovI').classList.remove('on')}
+    resetPdfUi();
     toast([add?'Aggiunti '+add:'',upd?'aggiornati '+upd:'',fill?'sala, squadra o evento aggiornati a '+fill:'',skip?'saltati '+skip+' in giorni liberi':'',del?(del===1?'rimosso 1 turno non più presente':'rimossi '+del+' turni non più presenti'):''].filter(Boolean).join(', '));
+    if(piuPdf)qNext();
   }
   function step2(skipAbs){applyImport(skipAbs,true)}
   $('iPdfGo').onclick=function(){
@@ -1694,13 +1752,13 @@ function pdfGeometry(opList,OPS){
     $('iPick').disabled=!ok;$('iPick').style.opacity=ok?'':'.5';
   }
   function goSurname(){
-    $('ovI').classList.remove('on');$('gear').click();
+    qReset();$('ovI').classList.remove('on');$('gear').click();
     setTimeout(function(){try{$('sSur').focus();$('sSur').select()}catch(e){}},80);
   }
   $('iWhoYes').onclick=function(){S.settings.surnameOk=true;save();whoShow();showBanner()};
   $('iWhoNo').onclick=goSurname;
-  $('import').onclick=function(){$('iTxt').value='';resetPdfUi();whoShow();$('ovI').classList.add('on')};
-  $('iClose').onclick=function(){$('ovI').classList.remove('on')};
+  $('import').onclick=function(){$('iTxt').value='';qReset();resetPdfUi();whoShow();$('ovI').classList.add('on')};
+  $('iClose').onclick=function(){qReset();$('ovI').classList.remove('on')};
   function normT(t){var p=t.split(':');return (+p[0]<10?'0':'')+(+p[0])+':'+p[1]}
   $('iGo').onclick=function(){
     var lines=$('iTxt').value.split(/\n/),arr=[],bad=0,now=new Date();
@@ -2337,7 +2395,7 @@ function pdfGeometry(opList,OPS){
   /* --- aggiornamenti delle convocazioni: l'app chiede alla casella dedicata quali PDF sono arrivati --- */
   var AG_AT=KEY+'.aggAt',AG_LINK=KEY+'.agg',AG_MAN=KEY+'.aggM',agFile='',agLink='',agItems=[],agNews=[],agSnooze=false,agBusy=false;
   /* --- schede evento (v48): elenco dalla casella, abbinato per giorno + nome dell'evento (+ sala) --- */
-  var SCH_KEY=KEY+'.sch',schItems=[],schAt=0,schErr='',schBusy=false,schBlob={},schCur=null;
+  var docList=[],CONV_KEY=KEY+'.conv',convItems=[],convAt=0,convBusy=false,SCH_KEY=KEY+'.sch',schItems=[],schAt=0,schErr='',schBusy=false,schBlob={},schCur=null;
   try{var schR=JSON.parse(localStorage.getItem(SCH_KEY)||'null');if(schR&&Array.isArray(schR.items)){schItems=schR.items;schAt=schR.at||0}}catch(e){}
   var SCH_SALE=[['SANTA CECILIA','SC'],['2800','SC'],['SINOPOLI','SI'],['1200','SI'],['PETRASSI','PE'],['700','PE'],['TEATRO STUDIO','TS'],['STUDIO BORGNA','TS'],['BORGNA','TS'],['300','TS'],['CASA DEL JAZZ','CDJ'],['CDJ','CDJ'],['MASSENZIO','CAV'],['CAVEA','CAV']];
   var SCH_SKIP=['SALA','SOCIETA','ITALIANA','CONGRESSO','NAZIONALE','DEL','DELLA','DEI','PER','THE','TRIO','LIVE','SUMMERTIME','CONCERTO','PROVE','SOUND','CHECK','CASA','JAZZ','CDJ','CNP','STAGIONE','ESTIVA','INFO','HALL'];
@@ -2391,7 +2449,8 @@ function pdfGeometry(opList,OPS){
       try{localStorage.setItem(SCH_KEY,JSON.stringify({items:schItems,at:schAt}))}catch(e){}
     }).catch(function(){schErr='rete'}).then(function(){schBusy=false;try{wInfo()}catch(e){}});
   }
-  function schAuto(){if(agLink&&Date.now()-schAt>3600*1000)schRefresh(false)}
+  /* le schede si controllano da sole al massimo ogni 3 ore, come le convocazioni; se un controllo non riesce non si segna, e si riprova alla prossima apertura */
+  function schAuto(){if(agLink&&Date.now()-schAt>3*3600*1000)schRefresh(false)}
   function schStato(){
     if(schBusy)return 'Controllo le schede…';
     if(schErr==='vecchio')return 'Lo script della casella non è aggiornato: le schede non si possono cercare.';
@@ -2415,7 +2474,8 @@ function pdfGeometry(opList,OPS){
     });
   }
   function schedaShow(e){
-    schCur=e.id;var m=schedeFor(e);
+    schCur=e.id;var m=schedeFor(e);docList=m;
+    $('scHint').textContent='La scheda si apre nel lettore del telefono: da lì puoi anche scaricarla.';
     $('scHead').innerHTML='<div style="font-size:18px;font-weight:800">Scheda evento'+(e.sala?' · '+esc(e.sala):'')+'</div>'+
       '<div class="hint" style="margin:2px 0 0">'+esc(dLabel(e.date,{weekday:'long',day:'numeric',month:'long'}))+'</div>';
     $('scBody').innerHTML=m.map(function(i,k){
@@ -2427,8 +2487,8 @@ function pdfGeometry(opList,OPS){
   }
   function schDays(d){var f=d[0].split('-'),l=d[d.length-1].split('-');return d.length===1?(+f[2])+' '+AG_MESN[+f[1]-1]:(+f[2])+(f[1]===l[1]?'':' '+AG_MESN[+f[1]-1])+' – '+(+l[2])+' '+AG_MESN[+l[1]-1]}
   function schedaLoad(k){
-    var e=S.entries.find(function(x){return x.id===schCur}),m=e?schedeFor(e):[],i=m[k],box=$('scA'+k);if(!i||!box)return;
-    function pronto(url){box.innerHTML='<a class="btn pri sm" href="'+url+'" target="_blank" rel="noopener">Apri la scheda</a><a class="btn sm" style="margin-top:8px" href="'+url+'" download="'+esc(i.x.name)+'">Scarica la scheda</a>'}
+    var i=docList[k],box=$('scA'+k);if(!i||!box)return;
+    function pronto(url){var w=i.conv?'la convocazione':'la scheda';box.innerHTML='<a class="btn pri sm" href="'+url+'" target="_blank" rel="noopener">Apri '+w+'</a><a class="btn sm" style="margin-top:8px" href="'+url+'" download="'+esc(i.x.name)+'">Scarica '+w+'</a>'}
     if(schBlob[i.x.id]){pronto(schBlob[i.x.id]);return}
     box.innerHTML='<small>Scarico…</small>';
     agCall('action=get&id='+encodeURIComponent(i.x.id),90000).then(function(r){
@@ -2436,6 +2496,47 @@ function pdfGeometry(opList,OPS){
       var bin=atob(r.data),u=new Uint8Array(bin.length);for(var q=0;q<bin.length;q++)u[q]=bin.charCodeAt(q);
       schBlob[i.x.id]=URL.createObjectURL(new Blob([u],{type:'application/pdf'}));pronto(schBlob[i.x.id]);
     }).catch(function(){box.innerHTML='<button type="button" class="btn sm" data-sx="'+k+'">Riprova</button><small style="display:block;color:var(--warn)">Non riesco a scaricarla.</small>'});
+  }
+
+  /* --- convocazione della settimana (v53): ultima versione del PDF della settimana del giorno scelto --- */
+  try{var cvR=JSON.parse(localStorage.getItem(CONV_KEY)||'null');if(cvR&&Array.isArray(cvR.items)){convItems=cvR.items;convAt=cvR.at||0}}catch(e){}
+  function convStore(items){
+    convItems=(items||[]).filter(function(x){return x&&x.name&&agParse(x.name).from}).map(function(x){return {id:x.id,name:x.name,date:x.date}});convAt=Date.now();
+    try{localStorage.setItem(CONV_KEY,JSON.stringify({items:convItems,at:convAt}))}catch(e){}
+  }
+  function convFor(date){
+    var best=null;
+    convItems.forEach(function(x){var p=agParse(x.name);if(!p.from||date<p.from||date>p.to)return;
+      if(!best||p.ver>best.p.ver||(p.ver===best.p.ver&&String(x.date)>String(best.x.date)))best={x:x,p:p}});
+    return best;
+  }
+  function convBtn(date){
+    if(!agLink)return '';
+    var cv=convFor(date);
+    return '<div class="rcf"><button type="button" class="cvb'+(cv?'':' cerca')+'" data-cv="'+date+'"'+(convBusy?' disabled':'')+'>'+(convBusy&&!cv?'Cerco…':(cv?'Convocazione':'Cerca convocazione'))+'</button></div>';
+  }
+  function convRefresh(){
+    if(!agLink||convBusy)return Promise.resolve();
+    convBusy=true;try{wInfo()}catch(e){}
+    return agCall('action=list',45000).then(function(r){if(!r||!r.ok||!Array.isArray(r.items))throw new Error('risposta');convStore(r.items);return true}).catch(function(){return false}).then(function(ok){convBusy=false;try{wInfo()}catch(e){}return ok});
+  }
+  function convClick(date){
+    if(convBusy)return;
+    if(convFor(date)){convShow(date);return}
+    convRefresh().then(function(ok){
+      if(!ok){toast('Non riesco a collegarmi. Riprova tra poco');return}
+      if(convFor(date))convShow(date);else toast('Nessuna convocazione arrivata per questa settimana');
+    });
+  }
+  function convShow(date){
+    var cv=convFor(date);if(!cv)return;
+    docList=[{x:cv.x,s:{},conv:true}];
+    var al=agLabel(cv.p);
+    $('scHead').innerHTML='<div style="font-size:18px;font-weight:800">Convocazione'+(al?' · '+esc(al):'')+'</div>'+
+      '<div class="hint" style="margin:2px 0 0">'+esc(dLabel(date,{weekday:'long',day:'numeric',month:'long'}))+(cv.p.ver?' · versione '+cv.p.ver:'')+'</div>';
+    $('scHint').textContent='È l\'ultima convocazione arrivata per la settimana: vedi cosa fanno le altre sale e le altre squadre. Si apre nel lettore del telefono; da lì, o con "Scarica la convocazione", puoi salvarla.';
+    $('scBody').innerHTML='<div class="agr"><span><b>Settimana '+esc(al)+'</b><small>versione '+(cv.p.ver||'?')+'</small></span><span id="scA0" style="display:flex;flex-direction:column;align-items:stretch;text-align:center"><button type="button" class="btn sm" data-sx="0">Scarica e apri</button></span></div>';
+    $('ovSc').classList.add('on');schedaLoad(0);
   }
   var AG_MES={gen:0,feb:1,mar:2,apr:3,mag:4,giu:5,lug:6,ago:7,set:8,ott:9,nov:10,dic:11};
   var AG_MESN=['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
@@ -2551,7 +2652,7 @@ function pdfGeometry(opList,OPS){
       }
     }catch(e){}
     try{agFile=localStorage.getItem(AG_LINK)||''}catch(e){}
-    agSet();agUi();
+    agSet();agUi();try{wInfo()}catch(e){}   // il riquadro del giorno già disegnato non sapeva ancora dell'indirizzo: lo ridisegna
     if(typeof fetch!=='function'){if(agLink){agAuto().then(schAuto)}return}
     fetch('aggiornamenti.txt?'+Date.now(),{cache:'no-store'}).then(function(r){
       if(r.status===404){agFile='';try{localStorage.removeItem(AG_LINK)}catch(e){}return null}
@@ -2562,7 +2663,7 @@ function pdfGeometry(opList,OPS){
       var l=String(t||'').split(/\r?\n/).map(function(x){return x.trim()}).filter(Boolean)[0]||'';
       if(/^https:\/\/[^\s]+$/i.test(l)){agFile=l;try{localStorage.setItem(AG_LINK,l)}catch(e){}}
       else{agFile='';try{localStorage.removeItem(AG_LINK)}catch(e){}}
-    }).catch(function(){}).then(function(){agSet();agUi();if(agLink){agAuto().then(schAuto)}});
+    }).catch(function(){}).then(function(){agSet();agUi();try{wInfo()}catch(e){}if(agLink){agAuto().then(schAuto)}});
   }
   function agAuto(){
     var last=0;try{last=+localStorage.getItem(AG_AT)||0}catch(e){}
@@ -2570,6 +2671,7 @@ function pdfGeometry(opList,OPS){
     return agCall('action=list').then(function(r){
       try{localStorage.setItem(AG_AT,String(Date.now()))}catch(e){}
       if(!r||!r.ok)return;
+      convStore(r.items);
       var c=agCandidates(r.items||[]);
       if(!c.filter(function(x){return !(S.agDone||{})[x.name]}).length)return;
       return agDetect(c).catch(function(){}).then(function(){
@@ -2594,6 +2696,7 @@ function pdfGeometry(opList,OPS){
     agCall('action=list').then(function(r){
       if(!r||!r.ok)throw new Error('risposta');
       try{localStorage.setItem(AG_AT,String(Date.now()))}catch(e){}
+      convStore(r.items);
       agItems=agCandidates(r.items||[]);
       if(!agItems.length){agBusy=false;agSay('Non ci sono convocazioni recenti nella casella.');return}
       agSay('Controllo quali ho già importato…');
@@ -2735,8 +2838,12 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=50,APP_DATE='16 ottobre 2026';
+  var APP_VERSION=54,APP_DATE='22 ottobre 2026';
   var APP_LOG=[
+    [54,'Importa convocazioni: da "Scegli il PDF" si possono selezionare più PDF di settimane diverse; per ogni settimana si tiene la versione più recente e si mostra una settimana per volta, con Importa o Salta'],
+    [53,'Pulsante "Convocazione" nel riquadro del giorno (anche nei giorni liberi): apre l\'ultima convocazione arrivata per la settimana, per vedere le altre sale e le altre squadre'],
+    [52,'Schede evento controllate in automatico ogni 3 ore (come le convocazioni), anche quando l\'app torna in primo piano; se la scheda corrisponde, il pulsante "Scheda evento" è già pronto nel giorno'],
+    [51,'Conferma: un solo pulsante a tutta larghezza sotto i turni previsti, nell\'elenco e nel riquadro del giorno'],
     [50,'Verifica aggiornamenti più affidabile: "Importa" non resta più bloccato se il server di Google è lento (riprova da solo); l\'avviso giallo compare anche se la lettura di un PDF non riesce; il controllo delle schede parte dopo quello delle convocazioni'],
     [49,'Scheda evento: sotto "Apri la scheda" c\'è anche "Scarica la scheda" per salvare il PDF sul telefono o sul computer'],
     [48,'Pulsante "Scheda evento" (o "Cerca scheda") nel riquadro del giorno: le schede tecniche arrivate nella casella si abbinano per giorno e nome dell\'evento e si aprono nel lettore del telefono'],
@@ -2836,14 +2943,15 @@ function pdfGeometry(opList,OPS){
       if(isP)sub.push('<small class="pv">previsto, da confermare</small>');
       var other=[];if(e.place&&e.place!=='Auditorium')other.push(e.place);if(e.note)other.push(e.note);
       var right=dm==null?'<span class="h open">in corso</span>':'<span class="h num'+(vi?' '+vi.cls:'')+'">'+fmt(dm)+'</span>';
-      var acts=(isP?'<button class="okb" data-ok="'+e.id+'">Conferma</button>':'')+(e.crew&&e.crew.length?'<button type="button" class="sqb" data-sq="'+e.id+'">Squadra</button>':'')+(e.evento?'<button type="button" class="evb" data-ev="'+e.id+'">Evento</button>':'')+schedaBtn(e);
-      h+='<div class="rw'+(isP?' plan':'')+'"><button class="row" data-id="'+e.id+'"><span class="t num">'+e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(other.length?'<small>'+esc(other.join(' · '))+'</small>':'')+sub.join('')+'</span>'+right+'</button></div>'+(acts?(list.length>1?'<div class="acap">Turno '+e.start+' – '+(e.end||'…')+'</div>':'')+'<div class="acts">'+acts+'</div>':'');
+      var acts=(e.crew&&e.crew.length?'<button type="button" class="sqb" data-sq="'+e.id+'">Squadra</button>':'')+(e.evento?'<button type="button" class="evb" data-ev="'+e.id+'">Evento</button>':'')+schedaBtn(e);
+      h+='<div class="rw'+(isP?' plan':'')+'"><button class="row" data-id="'+e.id+'"><span class="t num">'+e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(other.length?'<small>'+esc(other.join(' · '))+'</small>':'')+sub.join('')+'</span>'+right+'</button></div>'+((acts||isP)&&list.length>1?'<div class="acap">Turno '+e.start+' – '+(e.end||'…')+'</div>':'')+(isP?'<div class="rcf"><button type="button" class="okb" data-ok="'+e.id+'">Conferma</button></div>':'')+(acts?'<div class="acts">'+acts+'</div>':'');
     });
     m.a.forEach(function(a){
       h+='<div class="rw"><span class="t" style="padding:12px 16px;color:var(--acc);font-weight:700;display:block">Assenza concordata · '+esc(ABS[a.type])+(a.count&&a.min?' <small style="font-weight:600;color:var(--mute)">conteggiata '+fmt(a.min)+'</small>':'')+'</span></div>';
     });
     if(list.length&&agLink&&d>=todayStr())h+='<div class="asc">'+esc(schStato())+'</div>';
     if(!list.length&&!m.a.length)h+='<div class="dn0">Nessun turno in questo giorno.</div>';
+    h+=convBtn(d);
     h+='<button class="addday" data-date="'+d+'">+ Aggiungi un turno</button>';
     $('dwday').innerHTML=h;
   }
@@ -3050,6 +3158,8 @@ function pdfGeometry(opList,OPS){
   load();
   try{pruneCrew()}catch(e){}
   (function(){var ch=false;S.entries.forEach(function(e){if(e.sala){var n=salaName(e.sala);if(n!==e.sala){e.sala=n;ch=true}}});if(ch)save()})();
+  /* app riaperta dopo ore senza ricaricare la pagina: i controlli automatici (3 ore) ripartono */
+  document.addEventListener('visibilitychange',function(){if(!document.hidden&&agLink)agAuto().then(schAuto)});
   render();showBanner();agInit();handleLink();
 })();
 </script>
