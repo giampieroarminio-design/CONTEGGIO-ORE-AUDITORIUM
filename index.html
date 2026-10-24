@@ -116,7 +116,7 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .sl{font-style:normal;font-weight:600;color:var(--acc);font-size:14px;margin-left:6px}
 .credit{text-align:center;color:var(--mute);font-size:12.5px;margin:22px 0 0;line-height:1.4}
 .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 12px;background:var(--track);padding:4px;border-radius:14px}
-.tabs button{min-height:44px;border:0;border-radius:11px;background:none;font-weight:700;color:var(--mute);font-size:14px}
+.tabs button{line-height:1.15;padding:0 4px;min-height:44px;border:0;border-radius:11px;background:none;font-weight:700;color:var(--mute);font-size:14px}
 .tabs button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.18)}
 .tabs button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .seg.wrap{flex-wrap:wrap}
@@ -137,6 +137,7 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .vrow b{font-variant-numeric:tabular-nums;font-size:17px}
 .h.vpos{color:var(--pos)}.h.vneg{color:var(--neg)}.h.vzero{color:var(--acc)}
 .vtag{font-weight:700}
+.vtag .vex{color:var(--sun)}.h.vx{color:var(--sun)}.vorg{color:var(--sun)}
 .vtag.mod{color:var(--acc)}
 .vtag .vpos{color:var(--pos)}.vtag .vneg{color:var(--neg)}
 .wt.abs{background:var(--sun)}
@@ -315,7 +316,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <div id="stBanner" role="alert" style="display:none"></div>
   <div class="tabs" role="tablist">
     <button id="tabT" role="tab" aria-selected="true" class="on">Turni</button>
-    <button id="tabV" role="tab" aria-selected="false">Variazioni</button>
+    <button id="tabV" role="tab" aria-selected="false">Prolunga / Anticipo</button>
     <button id="tabA" role="tab" aria-selected="false">Assenze</button>
   </div>
   <div id="pgT">
@@ -760,7 +761,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
         var dm=dur(e),sub=[],isP=!conf(e),vi=varInfo(e);
         if(e.chg)sub.push('<small class="chgt">'+(e.chg==='nuovo turno'?'Nuovo turno':'Cambiato · prima '+esc(e.chg))+'</small>');
         if(isP)sub.push('<small class="pv">previsto, da confermare</small>');
-        else if(e.ps&&(e.ps!==e.start||e.pe!==e.end)&&!vi)sub.push('<small>previsto '+e.ps+' – '+e.pe+(e.vnote?' · '+esc(e.vnote):'')+'</small>');
+        else if(e.ps&&(e.ps!==e.start||e.pe!==e.end)&&!(vi&&vi.kind==='mod'))sub.push('<small>previsto '+e.ps+' – '+e.pe+(e.vnote?' · '+esc(e.vnote):'')+'</small>');
         if(vi)sub.unshift(vi.html);
         var other=[];
         if(e.place&&e.place!=='Auditorium')other.push(e.place);
@@ -815,6 +816,8 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     var rec={id:cur.id||('t'+Date.now()+Math.floor(Math.random()*1000)),date:date,start:st,end:en,ps:cur.ps,pe:cur.pe,
       place:$('ePlace').value,note:$('eNote').value.trim(),sala:salaName($('eSala').value)};
     if(cur.vnote)rec.vnote=cur.vnote;
+    if(st===cur.start&&en===(cur.end||'')){if(cur.vx)rec.vx=cur.vx;if(cur.cm)rec.cm=cur.cm}   /* orari non toccati: i segni restano */
+    else if(cur.ps&&cur.pe&&en&&(st!==cur.ps||en!==cur.pe))rec.cm=1;                       /* orari cambiati a mano rispetto alla convocazione */
     if(cur.crew)rec.crew=cur.crew;
     if(cur.others)rec.others=cur.others;
     if(cur.evento)rec.evento=cur.evento;
@@ -1682,11 +1685,12 @@ function pdfGeometry(opList,OPS){
       else if(r.status==='conflict'&&r.act==='upd'&&r.match){
         var m=r.match,follow=!conf(m)||followsPlan(m);
         m.ps=r.ps;m.pe=r.pe;if(r.sala)m.sala=r.sala;setDet(m,r);stamp(m);
-        if(follow){m.start=r.ps;m.end=r.pe}
+        if(follow){m.start=r.ps;m.end=r.pe;delete m.vx;delete m.cm}
+        else if(m.vx){var nx={s:diffMin(m.start,r.ps),e:m.end?diffMin(m.end,r.pe):0};if(nx.s||nx.e)m.vx=nx;else delete m.vx}
         upd++;mark(r.date);
       }
       else if(r.status==='same'&&(r.fill||r.crewNew||r.evNew)&&r.match){if(r.fill)r.match.sala=r.sala;setDet(r.match,r);fill++;mark(r.date)}
-      if(r.status==='same'&&r.match){stamp(r.match);if(r.match.ps!==r.ps||r.match.pe!==r.pe){r.match.ps=r.ps;r.match.pe=r.pe}}   /* la nuova convocazione coincide con il turno svolto: non serve più segnarlo come cambiato */
+      if(r.status==='same'&&r.match){stamp(r.match);if(r.match.ps!==r.ps||r.match.pe!==r.pe){r.match.ps=r.ps;r.match.pe=r.pe}delete r.match.cm}   /* la nuova convocazione coincide con il turno svolto: non serve più segnarlo come cambiato (la prolunga resta evidenziata) */
     });
     if(doDel){
       var gone=vlist.filter(function(v){return v.planned&&v.act==='del'}).map(function(v){return v.e});
@@ -1979,17 +1983,44 @@ function pdfGeometry(opList,OPS){
     var pick=es.filter(function(e){return !conf(e)})[0]||es[0];
     if(pick)selectEntry(pick);else vSel.id=null;
   }
-  /* turno diverso dalla convocazione importata (cambiato a mano o a voce): niente "prolunga/posticipo", solo il confronto con la convocazione */
+  /* Due cose diverse rispetto alla convocazione importata:
+     - PROLUNGA/ANTICIPO (scheda «Prolunga / Anticipo», campo vx): le ore fatte in più restano SEMPRE evidenziate in arancione,
+       anche se poi una nuova convocazione corrisponde al turno svolto (una prolunga non è prevista dal turno);
+     - TURNO CAMBIATO a mano (finestra «Conferma/Modifica turno», campo cm): solo «cambiato, diverso dalla convocazione»,
+       il segno sparisce quando arriva una convocazione uguale al turno svolto. */
+  function overlapMin(a1,b1,a2,b2){
+    if(b1<=a1)b1+=1440;if(b2<=a2)b2+=1440;
+    return a1<b2&&a2<b1;
+  }
+  function vxOf(e){
+    if(!e.ps||!e.pe||!e.end)return null;
+    if(e.vx&&(e.vx.s||e.vx.e))return e.vx;
+    if(e.cm||(e.start===e.ps&&e.end===e.pe))return null;
+    /* turni salvati prima della v57, senza segno: se il nuovo orario si sovrappone al previsto (o c'è un motivo scritto) era una prolunga/anticipo */
+    if(e.vnote||overlapMin(toM(e.start),toM(e.end),toM(e.ps),toM(e.pe)))return {s:diffMin(e.start,e.ps),e:diffMin(e.end,e.pe)};
+    return null;
+  }
   function varInfo(e){
     if(!e.ps||!e.pe||!e.end)return null;
+    var x=vxOf(e);
+    if(x){
+      var dE=x.e||0,dS=x.s||0,parts=[];
+      if(dE>0)parts.push(['Prolunga +'+fmt(dE),1]);
+      if(dE<0)parts.push(['Uscita anticipata −'+fmt(-dE),-1]);
+      if(dS<0)parts.push(['Anticipo +'+fmt(-dS),1]);
+      if(dS>0)parts.push(['Inizio posticipato −'+fmt(dS),-1]);
+      var net=dE-dS;
+      return {cls:'',kind:'x',   /* solo la scritta «Prolunga +3:00» è colorata; il totale ore del turno resta normale */
+        html:'<small class="vtag">'+parts.map(function(q){return '<span class="'+(q[1]>0?'vex':'vneg')+'">'+q[0]+'</span>'}).join(' · ')+'</small>'};
+    }
     if(e.start===e.ps&&e.end===e.pe)return null;
-    return {cls:'',
+    return {cls:'',kind:'mod',
       html:'<small class="vtag mod">Turno cambiato · convocazione '+e.ps+' – '+e.pe+(e.vnote?' · '+esc(e.vnote):'')+'</small>'};
   }
   function varRows(k){
-    return S.entries.filter(function(e){return mkey(e.date)===k&&e.ps&&e.pe&&e.end&&(e.start!==e.ps||e.end!==e.pe)})
+    return S.entries.filter(function(e){return mkey(e.date)===k&&vxOf(e)})
       .sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1})
-      .map(function(e){return {e:e,delta:dur(e)-durOf(e.ps,e.pe)}});
+      .map(function(e){var x=vxOf(e);return {e:e,delta:(x.e||0)-(x.s||0)}});
   }
   function capS(d){return d<0?'anticipo di '+fmt(-d):(d>0?'inizio posticipato di '+fmt(d):'come previsto')}
   function capE(d){return d>0?'prolunga di '+fmt(d):(d<0?'uscita anticipata di '+fmt(-d):'come previsto')}
@@ -2021,7 +2052,7 @@ function pdfGeometry(opList,OPS){
       h+=stepRow('s','Inizio',b[0],ns,vSel.dS,capS(vSel.dS),false);
       if(hasEnd){
         var bd=durOf(b[0],b[1]),nd=durOf(ns,ne),dd=nd-bd;
-        h+='<div class="vres">Ore effettive: <b class="num">'+fmt(nd)+'</b> · '+(dd===0?'come previsto':'<b class="num '+(dd>0?'vpos':'vneg')+'">'+fmtS(dd)+'</b> rispetto al previsto')+'</div>';
+        h+='<div class="vres">Ore effettive: <b class="num">'+fmt(nd)+'</b> · '+(dd===0?'come previsto':'<b class="num '+(dd>0?'vorg':'vneg')+'">'+fmtS(dd)+'</b> rispetto al previsto')+'</div>';
       }
       h+='<label for="vNote">Motivo (facoltativo)</label><input type="text" id="vNote" value="'+esc(vSel.note)+'" placeholder="es. fine montaggio, cambio palco">';
       if(!conf(e))h+='<label class="chk"><input type="checkbox" id="vConf"'+(vSel.conf?' checked':'')+'> Segna anche il turno come confermato</label>';
@@ -2031,14 +2062,14 @@ function pdfGeometry(opList,OPS){
 
     var rows=varRows(view),tot=0;
     rows.forEach(function(r){if(conf(r.e))tot+=r.delta});
-    $('vList').innerHTML='<div style="padding:12px 0 4px"><div style="font-weight:700;font-size:16px">Variazioni di '+esc(monthLabel(view))+'</div>'+
-      (rows.length?'<div class="hint" style="margin:2px 0 0">Totale sui turni confermati: <b class="num '+(tot>0?'vpos':(tot<0?'vneg':''))+'">'+fmtS(tot)+'</b></div>':'')+'</div>'+
+    $('vList').innerHTML='<div style="padding:12px 0 4px"><div style="font-weight:700;font-size:16px">Prolunghe e anticipi di '+esc(monthLabel(view))+'</div>'+
+      (rows.length?'<div class="hint" style="margin:2px 0 0">Totale sui turni confermati: <b class="num '+(tot>0?'vorg':(tot<0?'vneg':''))+'">'+fmtS(tot)+'</b></div>':'')+'</div>'+
       (rows.length?rows.map(function(r){
         var e=r.e;
         return '<button type="button" class="vrow" data-act="edit" data-id="'+e.id+'"><span class="num">'+fmtDay(e.date)+' &nbsp;'+e.start+' – '+e.end+
           '<small>previsto '+e.ps+' – '+e.pe+(e.sala?' · '+esc(e.sala):'')+(e.vnote?' · '+esc(e.vnote):'')+(conf(e)?'':' · da confermare')+'</small></span>'+
-          '<b class="num '+(r.delta>0?'vpos':(r.delta<0?'vneg':''))+'">'+fmtS(r.delta)+'</b></button>';
-      }).join(''):'<p class="hint" style="padding:0 0 12px">Nessuna variazione registrata in questo mese.</p>');
+          '<b class="num '+(r.delta>0?'vorg':(r.delta<0?'vneg':''))+'">'+fmtS(r.delta)+'</b></button>';
+      }).join(''):'<p class="hint" style="padding:0 0 12px">Nessuna prolunga o anticipo registrati in questo mese.</p>');
   }
   function saveV(){
     var e=S.entries.find(function(x){return x.id===vSel.id});if(!e)return;
@@ -2047,6 +2078,8 @@ function pdfGeometry(opList,OPS){
     e.start=addMin(b[0],vSel.dS);
     if(e.end&&b[1])e.end=addMin(b[1],vSel.dE);
     e.vnote=(vSel.note||'').trim();
+    if(vSel.dS||vSel.dE)e.vx={s:vSel.dS,e:vSel.dE};else delete e.vx;   /* resta anche se arriva una nuova convocazione */
+    delete e.cm;
     if(vSel.conf&&!conf(e))e.confirmed=true;
     save();selectEntry(e);render();toast('Variazione salvata');
   }
@@ -2827,8 +2860,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=56,APP_DATE='24 ottobre 2026';
+  var APP_VERSION=57,APP_DATE='24 ottobre 2026';
   var APP_LOG=[
+    [57,'Prolunga / Anticipo (ex Variazioni): le ore fatte in più restano sempre evidenziate in arancione, anche se poi arriva una nuova convocazione; un turno cambiato a mano nella finestra di conferma dice solo «Turno cambiato · convocazione…» e il segno sparisce con una convocazione uguale'],
     [56,'Turno cambiato rispetto alla convocazione: invece di "prolunga" e "inizio posticipato" l\'app scrive "Turno cambiato · convocazione hh:mm – hh:mm"; se arriva una nuova convocazione uguale al turno svolto, il segno sparisce'],
     [55,'Ore di domenica e di festività: conta il giorno in cui il turno inizia (se inizia di domenica o in un festivo valgono tutte le sue ore, anche dopo mezzanotte; un turno che inizia il sabato resta ordinario)'],
     [54,'Importa convocazioni: da "Scegli il PDF" si possono selezionare più PDF di settimane diverse; per ogni settimana si tiene la versione più recente e si mostra una settimana per volta, con Importa o Salta'],
