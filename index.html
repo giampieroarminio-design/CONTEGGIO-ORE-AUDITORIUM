@@ -673,21 +673,15 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   function holidayName(date){return holidays(+date.slice(0,4))[date]||null}
   function isSun(date){return new Date(date+'T12:00:00').getDay()===0}
   function addDay(date){return ds(+date.slice(0,4),+date.slice(5,7),+date.slice(8,10)+1)}
-  function pieces(e){
-    if(!e.end)return [];
-    var a=toM(e.start),b=toM(e.end);
-    if(b>=a)return [{date:e.date,min:b-a}];
-    return [{date:e.date,min:1440-a},{date:addDay(e.date),min:b}];
-  }
+  /* Ore festive e domenicali: conta il giorno in cui il turno INIZIA. Se inizia di domenica o in un festivo nazionale
+     contano tutte le sue ore (anche quelle dopo la mezzanotte); un turno che inizia il giorno prima resta ordinario. */
   function festive(k){
     var hol=0,sun=0,by={};
     S.entries.forEach(function(e){
       if(mkey(e.date)!==k||!conf(e))return;
-      pieces(e).forEach(function(p){
-        if(p.min<=0)return;
-        if(holidayName(p.date)){hol+=p.min;by[p.date]=(by[p.date]||0)+p.min}
-        else if(isSun(p.date)){sun+=p.min;by[p.date]=(by[p.date]||0)+p.min}
-      });
+      var d=dur(e);if(!d||d<=0)return;
+      if(holidayName(e.date)){hol+=d;by[e.date]=(by[e.date]||0)+d}
+      else if(isSun(e.date)){sun+=d;by[e.date]=(by[e.date]||0)+d}
     });
     return {hol:hol,sun:sun,by:by};
   }
@@ -930,7 +924,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     $('fBody').innerHTML=r.rows.length?r.rows.map(function(x){
       return '<div class="fr'+(x.min?'':' zero')+(x.hol?'':' sun')+'"><span class="num">'+fmtDay(x.date)+'<small>'+esc(x.name)+'</small></span><b>'+(x.min?fmt(x.min):'non lavorato')+'</b></div>';
     }).join(''):'<p class="hint">Nessuna festività né domenica lavorata in questo mese.</p>';
-    $('fNote').textContent='Festività: '+fmt(r.f.hol)+' · Domeniche: '+fmt(r.f.sun)+' · Insieme: '+fmt(r.f.hol+r.f.sun)+'. Contano solo i turni confermati; se un turno supera la mezzanotte le ore si dividono tra i due giorni.';
+    $('fNote').textContent='Festività: '+fmt(r.f.hol)+' · Domeniche: '+fmt(r.f.sun)+' · Insieme: '+fmt(r.f.hol+r.f.sun)+'. Contano solo i turni confermati. Conta il giorno in cui il turno inizia: se inizia di domenica o in un festivo valgono tutte le sue ore, anche dopo la mezzanotte; un turno che inizia il giorno prima resta ordinario.';
     $('ovF').classList.add('on');
   }
   $('sum').onclick=function(ev){if(ev.target.closest('#fdet'))openF()};
@@ -2838,8 +2832,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=54,APP_DATE='22 ottobre 2026';
+  var APP_VERSION=55,APP_DATE='24 ottobre 2026';
   var APP_LOG=[
+    [55,'Ore di domenica e di festività: conta il giorno in cui il turno inizia (se inizia di domenica o in un festivo valgono tutte le sue ore, anche dopo mezzanotte; un turno che inizia il sabato resta ordinario)'],
     [54,'Importa convocazioni: da "Scegli il PDF" si possono selezionare più PDF di settimane diverse; per ogni settimana si tiene la versione più recente e si mostra una settimana per volta, con Importa o Salta'],
     [53,'Pulsante "Convocazione" nel riquadro del giorno (anche nei giorni liberi): apre l\'ultima convocazione arrivata per la settimana, per vedere le altre sale e le altre squadre'],
     [52,'Schede evento controllate in automatico ogni 3 ore (come le convocazioni), anche quando l\'app torna in primo piano; se la scheda corrisponde, il pulsante "Scheda evento" è già pronto nel giorno'],
