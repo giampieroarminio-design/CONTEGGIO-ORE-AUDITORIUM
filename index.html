@@ -398,6 +398,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   </div>
   <button class="btn pri" id="iPick" style="width:100%">Scegli il PDF (anche più di uno)</button>
   <div id="iQHead" style="display:none;margin:10px 0 0"></div>
+  <div id="iFix" style="display:none;margin:10px 0 0;padding:12px;border:1px solid var(--neg);border-radius:14px;background:var(--bg)"><p id="iFixTxt" style="margin:0 0 6px;font-size:14px"></p><button class="btn pri" id="iFixGo" style="width:100%;margin-top:8px;display:none"></button><button class="btn" id="iFixNo" style="width:100%;margin-top:8px">Non importare</button></div>
   <p class="hint" id="iMsg" role="status"></p>
   <div class="prev" id="iPrev" style="display:none"></div>
   <button class="btn pri" id="iPdfGo" style="width:100%;margin-top:12px;display:none"></button>
@@ -1011,7 +1012,7 @@ function colInfo(items,geo){
   }
   return ci;
 }
-function parseConvocazioni(items, surname, today, geo){
+function parseConvocazioni(items, surname, today, geo, forceDate){
   var ci=colInfo(items,geo),lines=ci.hy;
   var GIORNI={LUN:1,MAR:2,MER:3,GIO:4,VEN:5,SAB:6,DOM:0};
   var sn=String(surname||'').trim().toUpperCase();
@@ -1236,6 +1237,13 @@ function parseConvocazioni(items, surname, today, geo){
   var DAY=86400000;
   var t0=new Date(today.getFullYear(),today.getMonth(),today.getDate());
   var first=labels[0],base=null,farWarn=false;
+  if(forceDate){   /* data scelta dall'utente (per esempio dal nome del file): il giorno più vicino con lo stesso numero e lo stesso giorno della settimana della prima riga */
+    var bk0=1e18;
+    for(var k0=-60;k0<=60;k0++){
+      var d0=new Date(forceDate.getFullYear(),forceDate.getMonth(),forceDate.getDate()+k0);
+      if(d0.getDate()===first.dn&&d0.getDay()===first.wd&&Math.abs(k0)<bk0){bk0=Math.abs(k0);base=d0}
+    }
+  }
   /* mese scritto in verticale nella colonna a sinistra dei giorni (es. L U G L I O, SETTEMBRE-OTTOBRE) */
   var MESI={GENNAIO:1,FEBBRAIO:2,MARZO:3,APRILE:4,MAGGIO:5,GIUGNO:6,LUGLIO:7,AGOSTO:8,SETTEMBRE:9,OTTOBRE:10,NOVEMBRE:11,DICEMBRE:12};
   var lx=Math.min.apply(null,labels.map(function(l){return l.x}));
@@ -1252,6 +1260,7 @@ function parseConvocazioni(items, surname, today, geo){
       }
     }
   });
+  if(base&&!forceDate&&months.length&&Math.abs(base.getTime()-t0.getTime())>100*DAY)farWarn=true;   /* date molto lontane da oggi: da controllare */
   if(!base){
     /* mese non leggibile: cerco il giorno corrispondente più vicino a oggi, in un intervallo largo */
     var bk=1e18;
@@ -1283,7 +1292,7 @@ function parseConvocazioni(items, surname, today, geo){
   var dates=[];
   labels.forEach(function(l){var dd=new Date(base.getFullYear(),base.getMonth(),base.getDate()+(l.b-first.b));dates.push(dd.getFullYear()+'-'+pad(dd.getMonth()+1)+'-'+pad(dd.getDate()))});
   headers();
-  return {shifts:out,incomplete:incomplete,warn:warn,struck:struckOut,dates:dates,cats:catMeta};
+  return {shifts:out,incomplete:incomplete,warn:warn,struck:struckOut,dates:dates,cats:catMeta,first:{dn:first.dn,wd:first.wd}};
 }
 
 function pdfGeometry(opList,OPS){
@@ -1548,7 +1557,7 @@ function pdfGeometry(opList,OPS){
     var r=found[+b.getAttribute('data-i')];
     if(r){r.act=b.getAttribute('data-a');renderPrev()}
   };
-  function resetPdfUi(){found=[];vlist=[];vInfo={dates:[],older:false,newPdfAt:null,noShifts:false,surname:''};newPdfAt=null;newCats={};newCov=[];newPdfName='';renderPrev();iMsg('')}
+  function resetPdfUi(){var fx=$('iFix');if(fx)fx.style.display='none';found=[];vlist=[];vInfo={dates:[],older:false,newPdfAt:null,noShifts:false,surname:''};newPdfAt=null;newCats={};newCov=[];newPdfName='';renderPrev();iMsg('')}
   function showFound(list,extra,meta){
     found=analyze(list);
     vlist=(meta&&meta.dates&&meta.dates.length)?computeVanished(meta.dates,meta.struck,meta.pdfAt):[];
@@ -1614,8 +1623,45 @@ function pdfGeometry(opList,OPS){
       qOpen();
     });
   }
-  function readPdfFile(f){
-    resetPdfUi();iMsg('Lettura del PDF…');newPdfName=f.name||'';
+  /* controllo di coerenza tra le date lette nel PDF, il nome del file e la data di creazione: un errore nel file (per esempio la colonna del mese non aggiornata) non deve finire nei turni */
+  function fmtD(x){return x.slice(8,10)+'/'+x.slice(5,7)+'/'+x.slice(0,4)}
+  function dateCheck(f,dates,pdfAt,firstL){
+    if(!dates.length)return null;
+    var sorted=dates.slice().sort(),dMin=sorted[0],dMax=sorted[sorted.length-1],p=agParse((f&&f.name)||''),why=null,ref=null;
+    if(p.from){ref=p.from;if(dMax<addDays(p.from,-1)||dMin>addDays(p.to,1))why='nome'}
+    else if(pdfAt){var c=pdfAt.slice(0,10);ref=c;if(dMax<addDays(c,-120)||dMin>addDays(c,400))why='creazione'}
+    if(!why)return null;
+    var sug=null;
+    if(firstL&&ref){
+      for(var k=0;k<=60&&!sug;k++){
+        [k,-k].forEach(function(kk){
+          if(sug)return;
+          var x=addDays(ref,kk),dt=new Date(x+'T12:00:00');
+          if(+x.slice(8,10)===firstL.dn&&dt.getDay()===firstL.wd)sug=x;
+        });
+      }
+    }
+    if(sug&&sug===dMin)sug=null;
+    return {why:why,dMin:dMin,dMax:dMax,from:p.from,to:p.to,sug:sug,ref:ref};
+  }
+  var fixFile=null,fixSug=null;
+  function showMismatch(f,c){
+    var t='<b>Attenzione: le date di questo PDF non tornano.</b> ';
+    if(c.why==='nome')t+='Il nome del file dice <b>settimana '+esc(agLabel({from:c.from,to:c.to})+' '+c.from.slice(0,4))+'</b>, ma dentro il PDF le date risultano dal <b>'+fmtD(c.dMin)+'</b> al <b>'+fmtD(c.dMax)+'</b>. ';
+    else t+='Il PDF è stato creato il <b>'+fmtD(c.ref)+'</b>, ma le date dentro risultano dal <b>'+fmtD(c.dMin)+'</b> al <b>'+fmtD(c.dMax)+'</b>. ';
+    t+='Può essere un errore nel file (per esempio la colonna del mese non è stata aggiornata). <b>Non ho importato niente</b>, per non mettere i turni nelle date sbagliate.';
+    $('iFixTxt').innerHTML=t;
+    fixFile=f;fixSug=c.sug;
+    var go=$('iFixGo');
+    if(c.sug){go.textContent='Importa con le date '+(c.why==='nome'?'del nome del file':'vicine alla creazione del PDF')+' (da '+fmtD(c.sug)+')';go.style.display=''}
+    else go.style.display='none';
+    $('iFix').style.display='';
+    iMsg('');
+  }
+  $('iFixGo').onclick=function(){var f=fixFile,sg=fixSug;$('iFix').style.display='none';if(f&&sg)readPdfFile(f,{force:sg})};
+  $('iFixNo').onclick=function(){$('iFix').style.display='none';fixFile=null;iMsg('Non ho importato niente. Chiedi a Laura di controllare il file.')};
+  function readPdfFile(f,opts){
+    resetPdfUi();iMsg('Lettura del PDF…');newPdfName=f.name||'';var firstL=null;
     var surname=S.settings.surname||'';
     if(!surname.trim()){iMsg('Prima scrivi il tuo cognome nelle impostazioni (⚙).');return}
     if(!S.settings.surnameOk){iMsg('Prima conferma che '+surname+' è il tuo cognome.');return}
@@ -1633,7 +1679,8 @@ function pdfGeometry(opList,OPS){
         }).then(function(o){
           var tc=o.tc;
           var items=tc.items.map(function(i){return {s:i.str,x:i.transform[4],y:i.transform[5],w:i.width,h:i.height}});
-          var r=parseConvocazioni(items,surname,new Date(),o.geo);
+          var r=parseConvocazioni(items,surname,new Date(),o.geo,(opts&&opts.force)?new Date(opts.force+'T12:00:00'):null);
+          if(!firstL&&r.first)firstL=r.first;
           if(r.cats)Object.keys(r.cats).forEach(function(k){newCats[k]=r.cats[k]});
           if(r.error){layoutErr=true;if(r.error==='data')dataErr=true}else{all=all.concat(r.shifts);incomplete+=r.incomplete;dates=dates.concat(r.dates||[]);struck=struck.concat(r.struck||[])}
         });
@@ -1642,6 +1689,10 @@ function pdfGeometry(opList,OPS){
         newPdfAt=pdfAt;
         newCov=dates.slice();
         var meta={dates:dates,struck:struck,pdfAt:pdfAt};
+        if(!(opts&&opts.force)){
+          var chk=dateCheck(f,dates,pdfAt,firstL);
+          if(chk){newCov=[];found=[];vlist=[];renderPrev();showMismatch(f,chk);return}
+        }
         if(!all.length){
           /* struttura riconosciuta ma nessun turno a tuo nome: può essere che siano stati tolti tutti */
           if(dates.length){
@@ -1652,7 +1703,7 @@ function pdfGeometry(opList,OPS){
           iMsg(dataErr?'Ho letto il PDF ma non riesco a capire a quali date si riferisce. Usa "incolla il testo" qui sotto, o mandalo a Claude in chat.':layoutErr?'Non riconosco la struttura di questo PDF. Usa "incolla il testo" qui sotto, o mandalo a Claude in chat.':'Non ho trovato "'+surname+'" in questo PDF. Controlla il cognome nelle impostazioni.');
           return;
         }
-        showFound(all,(incomplete?' Alcune righe erano incomplete e sono state saltate.':'')+(struck.length?' '+struck.length+(struck.length===1?' turno risulta sbarrato':' turni risultano sbarrati')+' nel PDF.':''),meta);
+        showFound(all,((opts&&opts.force)?' Ho usato le date corrette ('+fmtD(opts.force)+'), non quelle scritte nel PDF.':'')+(incomplete?' Alcune righe erano incomplete e sono state saltate.':'')+(struck.length?' '+struck.length+(struck.length===1?' turno risulta sbarrato':' turni risultano sbarrati')+' nel PDF.':''),meta);
       });
     }).catch(function(){
       iMsg('Non riesco a leggere il PDF qui. Usa "incolla il testo" qui sotto, o mandalo a Claude in chat.');
@@ -2860,8 +2911,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=57,APP_DATE='24 ottobre 2026';
+  var APP_VERSION=58,APP_DATE='29 ottobre 2026';
   var APP_LOG=[
+    [58,'Importazione più sicura: se le date dentro il PDF non tornano con il nome del file (o con la data di creazione), per esempio perché Laura non ha aggiornato la colonna del mese, l\'app non importa e lo dice; propone di usare le date del nome del file'],
     [57,'Prolunga / Anticipo (ex Variazioni): le ore fatte in più restano sempre evidenziate in arancione, anche se poi arriva una nuova convocazione; un turno cambiato a mano nella finestra di conferma dice solo «Turno cambiato · convocazione…» e il segno sparisce con una convocazione uguale'],
     [56,'Turno cambiato rispetto alla convocazione: invece di "prolunga" e "inizio posticipato" l\'app scrive "Turno cambiato · convocazione hh:mm – hh:mm"; se arriva una nuova convocazione uguale al turno svolto, il segno sparisce'],
     [55,'Ore di domenica e di festività: conta il giorno in cui il turno inizia (se inizia di domenica o in un festivo valgono tutte le sue ore, anche dopo mezzanotte; un turno che inizia il sabato resta ordinario)'],
