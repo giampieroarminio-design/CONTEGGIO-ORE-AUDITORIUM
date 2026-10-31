@@ -2365,30 +2365,34 @@ function pdfGeometry(opList,OPS){
   $('pgA').addEventListener('input',function(ev){if(ev.target.id==='dpNote')dpSel.note=ev.target.value});
 
   /* --- cambio turno (v64): scambio con un collega della stessa categoria, nella stessa settimana; si scambiano orari, sala ed evento --- */
-  var cSel={give:'',who:'',date:'',s:'',e:'',sala:'',ev:''},cArm=null;
+  var cSel={give:'',who:'',date:'',s:'',e:'',sala:'',ev:'',crew:null},cArm=null;
   function swList(){return Array.isArray(S.sw)?S.sw:(S.sw=[])}
   function swSlot(sn,t){return (sn.ps&&sn.ps===t.ps&&sn.pe===t.pe)||(sn.start===t.ps&&sn.end===t.pe)}
   function swIgnored(t){return swList().some(function(w){return w.give&&w.give.date===t.date&&swSlot(w.give,t)})}
   function swEv(e){return (e&&e.evento||'').split('\n').map(function(x){return x.trim()}).filter(Boolean).join(' · ')}
+  function swTimeSel(id,lbl,v){
+    var o='<option value="">--:--</option>';
+    for(var m=0;m<48;m++){var t=('0'+Math.floor(m/2)).slice(-2)+':'+(m%2?'30':'00');o+='<option value="'+t+'"'+(v===t?' selected':'')+'>'+t+'</option>'}
+    return '<div><label for="'+id+'">'+lbl+'</label><select id="'+id+'">'+o+'</select></div>';
+  }
   function swAuto(){
     var g=S.entries.find(function(x){return x.id===cSel.give});if(!g)return;
     if(!cSel.date)cSel.date=g.date;
-    if(cSel.date!==g.date)return;
-    var who=(cSel.who||'').trim().toUpperCase(),row=who&&(g.crew||[]).filter(function(c){return c[0]!=='X'&&!isMe(c[1])&&String(c[1]).toUpperCase().indexOf(who)>=0})[0];
-    if(row){cSel.who=row[1];cSel.s=row[2];cSel.e=row[3]}
-    cSel.sala=g.sala||cSel.sala;cSel.ev=swEv(g)||cSel.ev;
   }
   function renderC(){
-    var td=addDays(todayStr(),-7),es=S.entries.filter(function(e){return e.date>=td}).sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1}),g=S.entries.find(function(x){return x.id===cSel.give}),cand=g?segTeam(g):[];
+    var td=addDays(todayStr(),-7),es=S.entries.filter(function(e){return e.date>=td}).sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1}),g=S.entries.find(function(x){return x.id===cSel.give});
     var h=segCard()+'<div style="font-weight:800;font-size:18px;margin-bottom:2px">Cambio turno</div>'+
-      '<p class="hint" style="margin:0">Scambio di turno concordato con un collega della tua stessa categoria, nella stessa settimana. Cambiano orari, sala ed evento. Laura ne è solo informata.</p>'+
-      '<label for="cGive">Il tuo turno che cedi</label><select id="cGive"><option value="">Scegli il turno…</option>'+es.map(function(e){return '<option value="'+e.id+'"'+(cSel.give===e.id?' selected':'')+'>'+esc(fmtDay(e.date)+' · '+e.start+' – '+(e.end||'…')+(e.sala?' · '+e.sala:''))+'</option>'}).join('')+'</select>'+
-      '<label for="cWho">Cognome del collega</label><input type="text" id="cWho" list="cWhoL" autocomplete="off" value="'+esc(cSel.who)+'" placeholder="es. ROSSI"><datalist id="cWhoL">'+cand.map(function(n){return '<option value="'+esc(n)+'">'}).join('')+'</datalist>'+
-      '<label for="cDate">Giorno del turno che prendi</label><input type="date" id="cDate" value="'+(cSel.date||'')+'">'+
-      '<div class="two"><div><label for="cS">Inizio</label><input type="time" id="cS" value="'+esc(cSel.s)+'"></div><div><label for="cE">Fine</label><input type="time" id="cE" value="'+esc(cSel.e)+'"></div></div>'+
+      '<p class="hint" style="margin:0">Scambi un tuo turno con quello di un collega della tua stessa categoria, nella stessa settimana: lui prende il tuo, tu prendi il suo. Laura ne è solo informata con una mail.</p>'+
+      '<div style="font-weight:700;margin:14px 0 0">1. Il tuo turno che cedi</div>'+
+      '<select id="cGive" aria-label="Il tuo turno che cedi"><option value="">Scegli il turno…</option>'+es.map(function(e){return '<option value="'+e.id+'"'+(cSel.give===e.id?' selected':'')+'>'+esc(fmtDay(e.date)+' · '+e.start+' – '+(e.end||'…')+(e.sala?' · '+e.sala:''))+'</option>'}).join('')+'</select>'+
+      '<div style="font-weight:700;margin:14px 0 0">2. Il collega</div>'+
+      '<input type="text" id="cWho" autocomplete="off" aria-label="Cognome del collega" value="'+esc(cSel.who)+'" placeholder="Cognome, es. LEONARDI">'+
+      '<div style="font-weight:700;margin:14px 0 0">3. Il turno del collega che prendi</div>'+
+      '<label for="cDate">Giorno</label><input type="date" id="cDate" value="'+(cSel.date||'')+'">'+
+      '<div class="two">'+swTimeSel('cS','Inizio',cSel.s)+swTimeSel('cE','Fine',cSel.e)+'</div>'+
       '<label for="cSala">Sala</label><input type="text" id="cSala" value="'+esc(cSel.sala)+'">'+
       '<label for="cEv">Evento (facoltativo)</label><input type="text" id="cEv" value="'+esc(cSel.ev)+'">'+
-      '<p class="hint" style="margin:6px 0 0">Nello stesso giorno, se il collega è nella squadra letta dal PDF, orario, sala ed evento si compilano da soli; negli altri casi scrivili tu.</p>'+
+      '<p class="hint" style="margin:6px 0 0">Scrivi il giorno, l\'orario e la sala del turno del collega che prendi (anche un altro giorno della settimana).</p>'+
       '<button type="button" class="btn pri" data-c="do" style="width:100%;margin-top:14px">Fai il cambio e prepara la mail</button>';
     $('cForm').innerHTML=h;
     var l=swList().slice().sort(function(a,b){return a.take.date<b.take.date?-1:1});
@@ -2410,13 +2414,12 @@ function pdfGeometry(opList,OPS){
     var ev=(cSel.ev||'').trim(),id='w'+Date.now()+Math.floor(Math.random()*100000),nid='t'+Date.now()+Math.floor(Math.random()*100000);
     var snap=JSON.parse(JSON.stringify(g)),ne={id:nid,date:d,start:cSel.s,end:cSel.e,sala:sala,place:g.place||'Auditorium',note:'',confirmed:true,sw:id};
     if(ev)ne.evento=ev;
-    if(d===g.date){if(g.crew)ne.crew=g.crew;if(g.others)ne.others=g.others;if(!ev&&g.evento)ne.evento=g.evento}
     var give={date:g.date,start:g.ps||g.start,end:g.pe||g.end,sala:g.sala||'',evento:swEv(g)},take={date:d,start:cSel.s,end:cSel.e,sala:sala,evento:ev};
     S.entries=S.entries.filter(function(x){return x.id!==g.id});S.entries.push(ne);
     S.seg=segList().filter(function(x){return !(x.tipo==='prolunga'&&x.ref===g.id&&!x.sent)});
     swList().push({id:id,at:new Date().toISOString(),who:who,give:snap,take:take,newId:nid});
     segAdd({tipo:'cambio',ref:id,date:g.date<d?g.date:d,info:{who:who,give:give,take:take}});
-    save();view=mkey(d);cSel={give:'',who:'',date:'',s:'',e:'',sala:'',ev:''};render();toast('Cambio fatto: ora invia la mail a Laura');
+    save();view=mkey(d);cSel={give:'',who:'',date:'',s:'',e:'',sala:'',ev:'',crew:null};render();toast('Cambio fatto: ora invia la mail a Laura');
   }
   function swUndo(id){
     var w=swList().find(function(x){return x.id===id});if(!w)return;
@@ -2436,8 +2439,9 @@ function pdfGeometry(opList,OPS){
   $('pgC').addEventListener('click',segClick);
   $('pgC').addEventListener('change',function(ev){
     var id=ev.target.id;
-    if(id==='cGive'){cSel.give=ev.target.value;cSel.date='';cSel.s='';cSel.e='';cSel.sala='';cSel.ev='';swAuto();renderC()}
-    else if(id==='cWho'){cSel.who=ev.target.value;swAuto();renderC()}
+    if(id==='cGive'){cSel.give=ev.target.value;cSel.date='';cSel.s='';cSel.e='';cSel.sala='';cSel.ev='';cSel.crew=null;var gg=S.entries.find(function(x){return x.id===cSel.give});if(gg)cSel.date=gg.date;swAuto();renderC()}
+    else if(id==='cWho'){cSel.who=ev.target.value}
+    else if(id==='cS'||id==='cE'){if(id==='cS')cSel.s=ev.target.value;else cSel.e=ev.target.value}
     else if(id==='cDate'){cSel.date=ev.target.value;swAuto();renderC()}
     else segTeamChange(ev);
   });
