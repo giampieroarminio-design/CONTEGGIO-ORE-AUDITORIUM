@@ -136,6 +136,10 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .vrow small{display:block;color:var(--mute);font-weight:500;font-size:13px}
 .vrow b{font-variant-numeric:tabular-nums;font-size:17px}
 .h.vpos{color:var(--pos)}.h.vneg{color:var(--neg)}.h.vzero{color:var(--acc)}
+.segc{border:1px solid var(--line);border-radius:14px;padding:12px;margin:0 0 14px;background:var(--bg)}
+.segr{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)}
+.segr>span:first-child{min-width:0;flex:1}.segr small{display:block;color:var(--mute);font-size:13px;font-weight:500}
+.segr .btn.sm{min-height:40px;padding:0 10px}.segr .acts2{display:flex;gap:6px;flex:none}
 .vtag{font-weight:700}
 .vtag .vex{color:var(--sun)}.h.vx{color:var(--sun)}.vorg{color:var(--sun)}
 .vtag.mod{color:var(--acc)}
@@ -482,6 +486,9 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <p class="hint">Serve a vedere con quali colleghi lavori. Squadre ed eventi si conservano solo 40 giorni: turni e ore non si toccano.</p>
   <label for="sSur">Il tuo cognome nelle convocazioni</label>
   <input type="text" id="sSur" autocapitalize="characters" placeholder="es. ARMINIO">
+  <label for="sMail">Email di Laura (per le segnalazioni)</label>
+  <input type="email" id="sMail" inputmode="email" autocapitalize="none" placeholder="es. laura@…">
+  <p class="hint">Serve per scrivere la mail già compilata quando segnali una prolunga, un'assenza o una disponibilità parziale. Resta solo su questo telefono.</p>
   <label for="sOpen">Residuo banca ore da cedolino</label>
   <input type="text" id="sOpen" inputmode="text" placeholder="es. -50 oppure 12:30">
   <div class="two">
@@ -594,13 +601,13 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
 <script>
 (function(){
   var KEY='oreAuditorium.v1';
-  var S={entries:[],abs:[],cov:[],agDone:{},pdfw:{},chg:[],settings:{contract:169*60,opening:0,surname:''}};
+  var S={entries:[],abs:[],seg:[],disp:[],cov:[],agDone:{},pdfw:{},chg:[],settings:{contract:169*60,opening:0,surname:''}};
   var $=function(id){return document.getElementById(id)};
 
   function load(){
     try{
       var r=localStorage.getItem(KEY);
-      if(r){var p=JSON.parse(r);S.entries=p.entries||[];S.abs=p.abs||[];S.cov=Array.isArray(p.cov)?p.cov:[];S.agDone=(p.agDone&&typeof p.agDone==='object'&&!Array.isArray(p.agDone))?p.agDone:{};S.pdfw=(p.pdfw&&typeof p.pdfw==='object'&&!Array.isArray(p.pdfw))?p.pdfw:{};S.chg=Array.isArray(p.chg)?p.chg:[];for(var k in (p.settings||{}))S.settings[k]=p.settings[k];}
+      if(r){var p=JSON.parse(r);S.entries=p.entries||[];S.abs=p.abs||[];S.seg=Array.isArray(p.seg)?p.seg:[];S.disp=Array.isArray(p.disp)?p.disp:[];S.cov=Array.isArray(p.cov)?p.cov:[];S.agDone=(p.agDone&&typeof p.agDone==='object'&&!Array.isArray(p.agDone))?p.agDone:{};S.pdfw=(p.pdfw&&typeof p.pdfw==='object'&&!Array.isArray(p.pdfw))?p.pdfw:{};S.chg=Array.isArray(p.chg)?p.chg:[];for(var k in (p.settings||{}))S.settings[k]=p.settings[k];}
     }catch(e){}
   }
   function save(){
@@ -1825,6 +1832,7 @@ function pdfGeometry(opList,OPS){
       $('sFromM').value=of?of.slice(5,7):'';$('sFromY').value=yy;
     })();
     $('sSur').value=S.settings.surname||'';
+    $('sMail').value=S.settings.lauraMail||'';
     $('sPat').checked=S.settings.patrono!==false;
     $('sExtra').value=S.settings.extra||'';
     $('sCrew').checked=S.settings.crew!==false;
@@ -1838,7 +1846,7 @@ function pdfGeometry(opList,OPS){
     var c=parseHM($('sContract').value),o=parseHM($('sOpen').value);
     if(c==null||c<=0){toast('Ore da contratto non valide');return}
     var oldSur=(S.settings.surname||'').trim().toUpperCase();
-    S.settings.surname=$('sSur').value.trim().toUpperCase();S.settings.surnameOk=!!S.settings.surname;
+    S.settings.surname=$('sSur').value.trim().toUpperCase();S.settings.surnameOk=!!S.settings.surname;S.settings.lauraMail=$('sMail').value.trim();
     S.settings.patrono=$('sPat').checked;S.settings.extra=$('sExtra').value.trim();hcache={};S.settings.crew=$('sCrew').checked;S.settings.wheel=$('sWheel').checked;wheelApply();S.settings.backupRemind=$('sRem').checked;
     S.settings.contract=c;S.settings.opening=o==null?0:o;
     var fm=$('sFromM').value,fy=$('sFromY').value;S.settings.openFrom=(fm&&fy)?fy+'-'+fm:'';
@@ -1897,7 +1905,7 @@ function pdfGeometry(opList,OPS){
   function snapshot(){
     var c=JSON.parse(JSON.stringify(S));
     c.entries.forEach(function(e){delete e.crew;delete e.evento;delete e.others});
-    delete c.cov;delete c.agDone;delete c.pdfw;delete c.chg;
+    delete c.cov;delete c.agDone;delete c.pdfw;delete c.chg;delete c.seg;
     c.entries.forEach(function(e){delete e.chg});
     return JSON.stringify(Object.assign({app:'ore-auditorium',versione:APP_VERSION,exportedAt:new Date().toISOString()},c));
   }
@@ -1986,7 +1994,7 @@ function pdfGeometry(opList,OPS){
   $('sConfirm').onclick=function(){
     if(!pendingRestore)return;
     try{localStorage.setItem(KEY+'.prima',JSON.stringify(S))}catch(e){}
-    S.entries=pendingRestore.entries;S.abs=pendingRestore.abs||[];
+    S.entries=pendingRestore.entries;S.abs=pendingRestore.abs||[];S.disp=pendingRestore.disp||[];
     for(var k in (pendingRestore.settings||{}))S.settings[k]=pendingRestore.settings[k];
     save();clearPending();$('ovS').classList.remove('on');render();toast('Dati ripristinati');
   };
@@ -2089,7 +2097,7 @@ function pdfGeometry(opList,OPS){
       if(!conf(e))h+='<label class="chk"><input type="checkbox" id="vConf"'+(vSel.conf?' checked':'')+'> Segna anche il turno come confermato</label>';
       h+='<div class="act"><button type="button" class="btn" data-act="reset">Torna al previsto</button><button type="button" class="btn pri" data-act="save">Salva variazione</button></div>';
     }
-    $('vForm').innerHTML=h;
+    $('vForm').innerHTML=segCard()+h;
 
     var rows=varRows(view),tot=0;
     rows.forEach(function(r){if(conf(r.e))tot+=r.delta});
@@ -2112,8 +2120,142 @@ function pdfGeometry(opList,OPS){
     if(vSel.dS||vSel.dE)e.vx={s:vSel.dS,e:vSel.dE};else delete e.vx;   /* resta anche se arriva una nuova convocazione */
     delete e.cm;
     if(vSel.conf&&!conf(e))e.confirmed=true;
+    segSyncProlunga(e);
     save();selectEntry(e);render();toast('Variazione salvata');
   }
+  /* --- segnalazioni a Laura (v61): prolunghe, assenze e disponibilità parziali da comunicare per email dalla propria posta --- */
+  var segSnooze=false,dpSel={date:null,mode:'dal',a:'11:00',b:'11:00',note:''};
+  function segList(){return Array.isArray(S.seg)?S.seg:(S.seg=[])}
+  function dispList(){return Array.isArray(S.disp)?S.disp:(S.disp=[])}
+  function segPending(){return segList().filter(function(g){return !g.sent})}
+  function segDM(d){return d.slice(8,10)+'/'+d.slice(5,7)}
+  function segDL(d){return dLabel(d,{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
+  function dispTxt(x){
+    return x.mode==='dal'?'Disponibile dalle '+x.a+' in poi':(x.mode==='fino'?'Disponibile fino alle '+x.a:'Non disponibile dalle '+x.a+' alle '+x.b);
+  }
+  function segAdd(o){
+    var old=segList().filter(function(g){return !g.sent&&g.tipo===o.tipo&&g.ref===o.ref})[0];
+    if(old){Object.keys(o).forEach(function(k){old[k]=o[k]});old.opened=null;return old}
+    o.id='g'+Date.now()+Math.floor(Math.random()*100000);o.at=new Date().toISOString();o.opened=null;o.sent=null;
+    segList().push(o);return o;
+  }
+  function segSyncProlunga(e){
+    if(!e)return;
+    if(vxOf(e)&&e.vx)segAdd({tipo:'prolunga',ref:e.id,date:e.date});
+    else S.seg=segList().filter(function(g){return !(g.tipo==='prolunga'&&g.ref===e.id&&!g.sent)});
+  }
+  function segDatesTxt(ds){
+    if(ds.length===1)return segDL(ds[0]);
+    var ok=true;for(var i=1;i<ds.length;i++){if(addDays(ds[i-1],1)!==ds[i])ok=false}
+    return ok?'dal '+segDL(ds[0])+' al '+segDL(ds[ds.length-1])+' ('+ds.length+' giorni)':ds.map(segDL).join('; ');
+  }
+  function segCompose(g){
+    var sur=(S.settings.surname||'').trim().toUpperCase()||'(cognome)',L=['Ciao Laura,',''],sub;
+    if(g.tipo==='prolunga'){
+      var e=S.entries.find(function(x){return x.id===g.ref}),x=e&&vxOf(e);
+      if(!e||!x||!e.ps||!e.pe)return null;
+      var dE=x.e||0,dS=x.s||0,ex=[];
+      if(dE>0)ex.push('prolunga +'+fmt(dE));if(dE<0)ex.push('uscita anticipata −'+fmt(-dE));
+      if(dS<0)ex.push('anticipo +'+fmt(-dS));if(dS>0)ex.push('inizio posticipato −'+fmt(dS));
+      var sl=e.sala||e.place||'';
+      L.push('ti segnalo una variazione di orario sul mio turno.','','Giorno: '+segDL(e.date),'Sala: '+(sl||'da verificare'));
+      L.push('Turno previsto: '+e.ps+' – '+e.pe,'Turno svolto: '+e.start+' – '+e.end,'Variazione: '+ex.join(', '),'Ore svolte: '+fmt(dur(e)));
+      if(e.vnote)L.push('Motivo: '+e.vnote);
+      sub='PROLUNGA · '+sur+' · '+segDM(e.date)+(sl?' · '+sl:'');
+    }else if(g.tipo==='assenza'){
+      var i=g.info||{},ds=(i.dates||[]).slice().sort();if(!ds.length)return null;
+      L.push('ti comunico un\'assenza programmata.','','Tipo: '+(i.type==='libero'?'Giorno libero (richiesta)':ABS[i.type]||i.type),'Giorni: '+segDatesTxt(ds));
+      if(i.note)L.push('Nota: '+i.note);
+      sub='ASSENZA · '+sur+' · '+segDM(ds[0])+(ds.length>1?' – '+segDM(ds[ds.length-1]):'');
+    }else if(g.tipo==='parziale'){
+      var d=g.info;if(!d)return null;
+      L.push('ti comunico una disponibilità parziale.','','Giorno: '+segDL(d.date),'Disponibilità: '+dispTxt(d));
+      if(d.note)L.push('Nota: '+d.note);
+      sub='DISPONIBILITÀ PARZIALE · '+sur+' · '+segDM(d.date);
+    }else return null;
+    L.push('','Grazie','','(Segnalazione preparata dall\'app Ore Auditorium)');
+    return {subject:'[Ore Auditorium] '+sub,body:L.join('\n')};
+  }
+  function segLabel(g){return g.tipo==='prolunga'?'Prolunga / anticipo':(g.tipo==='assenza'?'Assenza':'Disponibilità parziale')}
+  function segDesc(g){
+    if(g.tipo==='prolunga'){var e=S.entries.find(function(x){return x.id===g.ref});return e?fmtDay(e.date)+' · '+e.start+' – '+e.end:fmtDay(g.date)}
+    if(g.tipo==='assenza'){var i=g.info||{},ds=(i.dates||[]).slice().sort();return (ABS[i.type]||'')+' · '+(ds.length?fmtDay(ds[0])+(ds.length>1?' – '+fmtDay(ds[ds.length-1]):''):'')}
+    return fmtDay(g.date)+' · '+(g.info?dispTxt(g.info):'');
+  }
+  function segCard(){
+    var p=segPending();if(!p.length)return '';
+    return '<div class="segc"><div style="font-weight:800;font-size:16px">Da segnalare a Laura ('+p.length+')</div>'+
+      '<p class="hint" style="margin:2px 0 6px">Si apre la tua posta con la mail già compilata: controlla, premi Invia e poi torna qui a confermare.'+(S.settings.lauraMail?'':' <b>Scrivi prima l\'email di Laura in ⚙.</b>')+'</p>'+
+      p.map(function(g){
+        return '<div class="segr"><span><b>'+esc(segLabel(g))+'</b><small>'+esc(segDesc(g))+(g.opened?' · mail aperta':'')+'</small></span><span class="acts2">'+
+          (g.opened?'<button type="button" class="btn pri sm" data-sg="sent" data-id="'+g.id+'">Inviata</button><button type="button" class="btn sm" data-sg="open" data-id="'+g.id+'">Riapri</button>'
+                   :'<button type="button" class="btn pri sm" data-sg="open" data-id="'+g.id+'">Invia mail</button>')+
+          '<button type="button" class="btn sm" data-sg="del" data-id="'+g.id+'" aria-label="Non serve segnalarla">✕</button></span></div>';
+      }).join('')+'</div>';
+  }
+  function segLaunch(url){if(window.__segProva){window.__segProva(url);return}location.href=url}
+  function segOpen(id){
+    var g=segList().find(function(x){return x.id===id});if(!g)return;
+    var c=segCompose(g);
+    if(!c){S.seg=segList().filter(function(x){return x.id!==id});save();segRefresh();toast('Questa segnalazione non c\'è più');return}
+    var to=(S.settings.lauraMail||'').trim();
+    g.opened=new Date().toISOString();save();
+    segLaunch('mailto:'+(/^[^\s@,;]+@[^\s@,;]+$/.test(to)?to:'')+'?subject='+encodeURIComponent(c.subject)+'&body='+encodeURIComponent(c.body));
+    segRefresh();
+  }
+  function segRefresh(){if(tab==='A')renderA();if(tab==='V')renderV();try{showBanner()}catch(e){}}
+  function segClick(ev){
+    var b=ev.target.closest('[data-sg]');if(!b)return;
+    var a=b.getAttribute('data-sg'),id=b.getAttribute('data-id');
+    if(a==='open')segOpen(id);
+    else if(a==='sent'){var g=segList().find(function(x){return x.id===id});if(g){g.sent=new Date().toISOString();save();segRefresh();toast('Segnalata a Laura')}}
+    else if(a==='del'){S.seg=segList().filter(function(x){return x.id!==id});save();segRefresh()}
+    else if(a==='deldisp'){S.disp=dispList().filter(function(x){return x.id!==id});S.seg=segList().filter(function(g){return !(g.tipo==='parziale'&&g.ref===id&&!g.sent)});save();render();toast('Disponibilità tolta')}
+  }
+  $('pgA').addEventListener('click',segClick);
+  $('pgV').addEventListener('click',segClick);
+  /* disponibilità parziale: giorno lavorabile ma con un orario limitato (es. visita al mattino) */
+  function dpForm(){
+    if(!dpSel.date)dpSel.date=todayStr();
+    var m=dpSel.mode;
+    return '<div style="margin-top:22px;padding-top:14px;border-top:1px solid var(--line)"><div style="font-weight:800;font-size:18px;margin-bottom:2px">Disponibilità parziale</div>'+
+      '<p class="hint" style="margin:0">Per quando puoi lavorare solo in parte della giornata (per esempio una visita al mattino). Non è un giorno libero: il giorno resta lavorabile, con un orario limitato.</p>'+
+      '<label for="dpDate">Giorno</label><input type="date" id="dpDate" value="'+dpSel.date+'">'+
+      '<label>Come</label><div class="seg wrap">'+[['dal','Disponibile dalle…'],['fino','Disponibile fino alle…'],['non','Non disponibile dalle… alle…']].map(function(q){
+        return '<button type="button" data-a="dpmode" data-m="'+q[0]+'" class="'+(m===q[0]?'on':'')+'" aria-pressed="'+(m===q[0])+'">'+q[1]+'</button>';
+      }).join('')+'</div>'+
+      '<div class="two"><div><label for="dpA">'+(m==='non'?'Dalle':'Alle ore')+'</label><input type="time" id="dpA" value="'+dpSel.a+'"></div>'+
+      (m==='non'?'<div><label for="dpB">Alle</label><input type="time" id="dpB" value="'+dpSel.b+'"></div>':'')+'</div>'+
+      '<label for="dpNote">Nota (facoltativa)</label><input type="text" id="dpNote" value="'+esc(dpSel.note)+'" placeholder="es. rientro dalle 11">'+
+      '<button type="button" class="btn pri" data-a="dpadd" style="width:100%;margin-top:14px">Aggiungi e prepara la segnalazione</button></div>';
+  }
+  function dispListHtml(){
+    var rows=dispList().filter(function(x){return mkey(x.date)===view}).sort(function(a,b){return a.date<b.date?-1:1});
+    if(!rows.length)return '';
+    return '<div style="padding:12px 0 4px"><div style="font-weight:700;font-size:16px">Disponibilità parziali di '+esc(monthLabel(view))+'</div></div>'+rows.map(function(x){
+      return '<div class="segr"><span><b class="num">'+fmtDay(x.date)+'</b><small>'+esc(dispTxt(x))+(x.note?' · '+esc(x.note):'')+'</small></span><button type="button" class="btn sm" data-sg="deldisp" data-id="'+x.id+'" aria-label="Togli">✕</button></div>';
+    }).join('');
+  }
+  $('pgA').addEventListener('click',function(ev){
+    var b=ev.target.closest('[data-a]');if(!b)return;
+    var a=b.getAttribute('data-a');
+    if(a==='dpmode'){dpSel.mode=b.getAttribute('data-m');renderA()}
+    else if(a==='dpadd'){
+      if(!dpSel.date||!dpSel.a){toast('Scrivi giorno e orario');return}
+      if(dpSel.mode==='non'&&(!dpSel.b||dpSel.b<=dpSel.a)){toast('L\'orario di fine deve essere dopo quello di inizio');return}
+      var x={id:'d'+Date.now()+Math.floor(Math.random()*100000),date:dpSel.date,mode:dpSel.mode,a:dpSel.a,b:dpSel.mode==='non'?dpSel.b:'',note:(dpSel.note||'').trim()};
+      dispList().push(x);segAdd({tipo:'parziale',ref:x.id,date:x.date,info:x});
+      save();view=mkey(x.date);dpSel.note='';render();toast('Disponibilità aggiunta: ora invia la segnalazione a Laura');
+    }
+  });
+  $('pgA').addEventListener('change',function(ev){
+    var id=ev.target.id;
+    if(id==='dpDate')dpSel.date=ev.target.value||todayStr();
+    else if(id==='dpA')dpSel.a=ev.target.value;
+    else if(id==='dpB')dpSel.b=ev.target.value;
+  });
+  $('pgA').addEventListener('input',function(ev){if(ev.target.id==='dpNote')dpSel.note=ev.target.value});
+
   function showTab(t){
     tab=t;
     ['T','V','A'].forEach(function(x){
@@ -2220,7 +2362,7 @@ function pdfGeometry(opList,OPS){
       '<p class="hint" id="aPrev" style="font-weight:600;color:var(--ink);margin-top:10px">'+esc(aPrevText())+'</p>'+
       '<label for="aNote">Nota (facoltativa)</label><input type="text" id="aNote" value="'+esc(aSel.note)+'" placeholder="es. visita medica, comunicato il 20/09">'+
       '<button type="button" class="btn pri" data-a="add" style="width:100%;margin-top:14px">Aggiungi</button>';
-    $('aForm').innerHTML=h;
+    $('aForm').innerHTML=segCard()+h+dpForm();
     var ab=absMonth(view),rows=(S.abs||[]).filter(function(a){return mkey(a.date)===view}).sort(function(a,b){return a.date<b.date?-1:1});
     $('aList').innerHTML='<div style="padding:12px 0 4px"><div style="font-weight:700;font-size:16px">Assenze di '+esc(monthLabel(view))+'</div>'+
       (rows.length?'<div class="hint" style="margin:2px 0 0">'+esc(absTxt(ab.by))+(ab.cr?' · <b class="num vpos">'+fmt(ab.cr)+'</b> conteggiate come ore':'')+'</div>':'')+'</div>'+
@@ -2232,6 +2374,7 @@ function pdfGeometry(opList,OPS){
         if(conflict)sub.push('<small style="color:var(--warn);font-weight:700">In questo giorno hai anche dei turni</small>');
         return '<button type="button" class="vrow" data-a="edit" data-id="'+a.id+'"><span class="num">'+fmtDay(a.date)+sub.join('')+'</span><b style="font-size:15px;color:var(--acc)">'+ABS[a.type]+'</b></button>';
       }).join(''):'<p class="hint" style="padding:0 0 12px">Nessuna assenza segnata in questo mese.</p>');
+    $('aList').innerHTML+=dispListHtml();
   }
   function aUpdatePrev(){var el=$('aPrev');if(el)el.textContent=aPrevText()}
   function aeToggle(){
@@ -2249,14 +2392,15 @@ function pdfGeometry(opList,OPS){
       var days=aDays(),cnt=aCounts(),m=cnt?aMinutes(aSel.hours):null;
       if(!days.length){toast('Nessun giorno da segnare');return}
       if(cnt&&!m){toast('Scrivi le ore da conteggiare, per esempio 8:00');return}
-      var n=0,first=null;
+      var n=0,first=null,addedD=[];
       days.forEach(function(d){
         if((S.abs||[]).some(function(x){return x.date===d&&x.type===aSel.type}))return;
         var r={id:'a'+Date.now()+Math.floor(Math.random()*100000)+n,date:d,type:aSel.type,note:(aSel.note||'').trim()};
         if(cnt){r.count=true;r.min=m}
-        S.abs.push(r);n++;if(!first)first=d;
+        S.abs.push(r);n++;if(!first)first=d;addedD.push(d);
       });
       if(!n){toast('Erano già tutti segnati');return}
+      segAdd({tipo:'assenza',date:first,ref:'a'+Date.now(),info:{type:aSel.type,dates:addedD,note:(aSel.note||'').trim()}});
       save();view=mkey(first);aSel.note='';render();
       toast('Segnati '+n+(n===1?' giorno':' giorni')+': '+ABS[aSel.type].toLowerCase());
     }
@@ -2333,6 +2477,10 @@ function pdfGeometry(opList,OPS){
     if(S.chg.length!==nc0)ch=true;
     S.entries.forEach(function(e){if(e.chg&&e.date<tdy){delete e.chg;ch=true}});
     if(adc)ch=true;
+    var sg0=segList().length,sgOld=addDays(todayStr(),-30),sgDay=addDays(todayStr(),-60);
+    S.seg=segList().filter(function(g){return !(g.sent&&g.sent.slice(0,10)<sgOld)&&g.date>=sgDay});
+    var dp0=dispList().length;S.disp=dispList().filter(function(x){return x.date>=sgDay});
+    if(S.seg.length!==sg0||S.disp.length!==dp0)ch=true;
     var cc=addDays(todayStr(),-60),before=(S.cov||[]).length;
     S.cov=(S.cov||[]).filter(function(r){return r[1]>=cc});
     if(S.cov.length!==before)ch=true;
@@ -2890,8 +3038,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=60,APP_DATE='1 novembre 2026';
+  var APP_VERSION=61,APP_DATE='2 novembre 2026';
   var APP_LOG=[
+    [61,'Segnalazioni a Laura: prolunghe, assenze e disponibilità parziali (es. «disponibile dalle 11») si preparano come email dalla tua posta, con oggetto e cognome già scritti; l\'app ricorda quelle ancora da inviare. Email di Laura in ⚙'],
     [60,'Il riquadro sotto l\'orologio si aggiorna sempre dopo una modifica (anche una prolunga), senza bisogno di ricaricare l\'app'],
     [59,'Pulizia del codice (4 funzioni inutilizzate e una duplicata tolte): nessun cambiamento visibile'],
     [58,'Importazione più sicura: se le date dentro il PDF non tornano con il nome del file (o con la data di creazione), per esempio perché Laura non ha aggiornato la colonna del mese, l\'app non importa e lo dice; propone di usare le date del nome del file'],
@@ -3008,6 +3157,7 @@ function pdfGeometry(opList,OPS){
       h+='<div class="rw"><span class="t" style="padding:12px 16px;color:var(--acc);font-weight:700;display:block">Assenza concordata · '+esc(ABS[a.type])+(a.count&&a.min?' <small style="font-weight:600;color:var(--mute)">conteggiata '+fmt(a.min)+'</small>':'')+'</span></div>';
     });
     if(list.length&&agLink&&d>=todayStr())h+='<div class="asc">'+esc(schStato())+'</div>';
+    dispList().filter(function(x){return x.date===d}).forEach(function(x){h+='<div class="dnote" style="color:var(--warn)">'+esc(dispTxt(x))+(x.note?' · '+esc(x.note):'')+'</div>'});
     if(!list.length&&!m.a.length)h+='<div class="dn0">Nessun turno in questo giorno.</div>';
     h+=convBtn(d);
     h+='<button class="addday" data-date="'+d+'">+ Aggiungi un turno</button>';
@@ -3157,6 +3307,9 @@ function pdfGeometry(opList,OPS){
       var pend=agPending();
       var an=pend[pend.length-1],al=agLabel(an.p);
       html='<b>'+(pend.length===1?'C\'è un aggiornamento delle convocazioni':'Ci sono '+pend.length+' aggiornamenti delle convocazioni')+'</b>'+(pend.length===1?' ('+(al?'settimana '+esc(al)+', ':'')+(an.p.ver?'versione '+an.p.ver:esc(an.name))+')':'')+'.<br><button type="button" id="stAg">Verifica</button> <button type="button" id="stAgLater">Più tardi</button>';
+    }else if(segPending().length&&!segSnooze){
+      cls='warn';var ng=segPending().length;
+      html='<b>Hai '+ng+(ng===1?' segnalazione':' segnalazioni')+' da inviare a Laura.</b><br><button type="button" id="stSg">Vedi</button> <button type="button" id="stSgLater">Più tardi</button>';
     }else if(backupDue()){
       cls='warn';
       var lb=S.settings.lastBackup;
@@ -3169,6 +3322,9 @@ function pdfGeometry(opList,OPS){
     var sch=$('stCh'),schr=$('stChRead');
     if(sch)sch.onclick=chOpen;
     if(schr)schr.onclick=chRead;
+    var sgb=$('stSg'),sgl=$('stSgLater');
+    if(sgb)sgb.onclick=function(){b.style.display='none';showTab('A')};
+    if(sgl)sgl.onclick=function(){segSnooze=true;b.style.display='none'};
     var ag=$('stAg'),agl=$('stAgLater');
     if(ag)ag.onclick=function(){b.style.display='none';$('import').click();setTimeout(function(){$('agCheck').click()},60)};
     if(agl)agl.onclick=function(){agSnooze=true;b.style.display='none'};
