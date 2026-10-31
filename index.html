@@ -115,8 +115,8 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .wd .free{color:var(--pos)}.wd .busy{color:var(--neg)}
 .sl{font-style:normal;font-weight:600;color:var(--acc);font-size:14px;margin-left:6px}
 .credit{text-align:center;color:var(--mute);font-size:12.5px;margin:22px 0 0;line-height:1.4}
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 12px;background:var(--track);padding:4px;border-radius:14px}
-.tabs button{line-height:1.15;padding:0 4px;min-height:44px;border:0;border-radius:11px;background:none;font-weight:700;color:var(--mute);font-size:14px}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 0 12px;background:var(--track);padding:4px;border-radius:14px}
+.tabs button{line-height:1.15;padding:0 3px;min-height:44px;border:0;border-radius:11px;background:none;font-weight:700;color:var(--mute);font-size:13px}
 .tabs button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.18)}
 .tabs button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
 .seg.wrap{flex-wrap:wrap}
@@ -139,6 +139,7 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .segc{border:1px solid var(--line);border-radius:14px;padding:12px;margin:0 0 14px;background:var(--bg)}
 .segr{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)}
 .segr>span:first-child{min-width:0;flex:1}.segr small{display:block;color:var(--mute);font-size:13px;font-weight:500}
+.segt{padding:0 0 8px}.segt summary{font-size:14px;color:var(--mute);font-weight:600;padding:4px 0;cursor:pointer}.segt label{display:flex;gap:10px;align-items:center;min-height:40px;font-size:15px}.segt input{width:22px;height:22px;flex:none}.segt .btn.sm{margin-top:6px}
 .segr .btn.sm{min-height:40px;padding:0 10px}.segr .acts2{display:flex;gap:6px;flex:none}
 .vtag{font-weight:700}
 .vtag .vex{color:var(--sun)}.h.vx{color:var(--sun)}.vorg{color:var(--sun)}
@@ -322,6 +323,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     <button id="tabT" role="tab" aria-selected="true" class="on">Turni</button>
     <button id="tabV" role="tab" aria-selected="false">Prolunga / Anticipo</button>
     <button id="tabA" role="tab" aria-selected="false">Assenze</button>
+    <button id="tabC" role="tab" aria-selected="false">Cambio turno</button>
   </div>
   <div id="pgT">
   <section class="whl" id="dwBox">
@@ -350,6 +352,10 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   <div id="pgA" style="display:none">
     <section class="sum" id="aForm"></section>
     <section class="list" id="aList" style="padding:6px 16px"></section>
+  </div>
+  <div id="pgC" style="display:none">
+    <section class="sum" id="cForm"></section>
+    <section class="list" id="cList" style="padding:6px 16px"></section>
   </div>
   <p class="credit">Ideata e sviluppata da Giampiero Arminio, con Claude (Anthropic)</p>
 </div>
@@ -601,13 +607,13 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
 <script>
 (function(){
   var KEY='oreAuditorium.v1';
-  var S={entries:[],abs:[],seg:[],disp:[],cov:[],agDone:{},pdfw:{},chg:[],settings:{contract:169*60,opening:0,surname:''}};
+  var S={entries:[],abs:[],seg:[],disp:[],sw:[],cov:[],agDone:{},pdfw:{},chg:[],settings:{contract:169*60,opening:0,surname:''}};
   var $=function(id){return document.getElementById(id)};
 
   function load(){
     try{
       var r=localStorage.getItem(KEY);
-      if(r){var p=JSON.parse(r);S.entries=p.entries||[];S.abs=p.abs||[];S.seg=Array.isArray(p.seg)?p.seg:[];S.disp=Array.isArray(p.disp)?p.disp:[];S.cov=Array.isArray(p.cov)?p.cov:[];S.agDone=(p.agDone&&typeof p.agDone==='object'&&!Array.isArray(p.agDone))?p.agDone:{};S.pdfw=(p.pdfw&&typeof p.pdfw==='object'&&!Array.isArray(p.pdfw))?p.pdfw:{};S.chg=Array.isArray(p.chg)?p.chg:[];for(var k in (p.settings||{}))S.settings[k]=p.settings[k];}
+      if(r){var p=JSON.parse(r);S.entries=p.entries||[];S.abs=p.abs||[];S.seg=Array.isArray(p.seg)?p.seg:[];S.disp=Array.isArray(p.disp)?p.disp:[];S.sw=Array.isArray(p.sw)?p.sw:[];S.cov=Array.isArray(p.cov)?p.cov:[];S.agDone=(p.agDone&&typeof p.agDone==='object'&&!Array.isArray(p.agDone))?p.agDone:{};S.pdfw=(p.pdfw&&typeof p.pdfw==='object'&&!Array.isArray(p.pdfw))?p.pdfw:{};S.chg=Array.isArray(p.chg)?p.chg:[];for(var k in (p.settings||{}))S.settings[k]=p.settings[k];}
     }catch(e){}
   }
   function save(){
@@ -728,7 +734,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   }
 
   function render(){
-    renderMain();if(tab==='V')renderV();if(tab==='A')renderA();
+    renderMain();if(tab==='V')renderV();if(tab==='A')renderA();if(tab==='C')renderC();
     /* se la ruota ha un intoppo nel disegno, il riquadro sotto l'orologio si aggiorna comunque (prima restava vecchio fino al refresh) */
     try{wRefresh()}catch(e){try{wBuild();wInfo()}catch(e2){}}
   }
@@ -1547,7 +1553,8 @@ function pdfGeometry(opList,OPS){
   };
   function resetPdfUi(){var fx=$('iFix');if(fx)fx.style.display='none';found=[];vlist=[];vInfo={dates:[],older:false,newPdfAt:null,noShifts:false,surname:''};newPdfAt=null;newCats={};newCov=[];newPdfName='';renderPrev();iMsg('')}
   function showFound(list,extra,meta){
-    found=analyze(list);
+    var swSk=list.filter(swIgnored).length;
+    found=analyze(list.filter(function(t){return !swIgnored(t)}));
     vlist=(meta&&meta.dates&&meta.dates.length)?computeVanished(meta.dates,meta.struck,meta.pdfAt):[];
     vInfo.newPdfAt=meta?meta.pdfAt:null;vInfo.noShifts=!!(meta&&!list.length);vInfo.surname=S.settings.surname||'';
     renderPrev();
@@ -1560,6 +1567,7 @@ function pdfGeometry(opList,OPS){
     var nd=vlist.filter(function(v){return v.planned&&v.act==='del'}).length;
     if(!list.length)m='Nessun turno a tuo nome in questo PDF.';
     if(nd)m+=' '+(nd===1?'1 turno vecchio non è più':nd+' turni vecchi non sono più')+' nella convocazione: li rimuovo.';
+    if(swSk)m+=' '+(swSk===1?'Ignorato 1 turno già scambiato con un collega.':'Ignorati '+swSk+' turni già scambiati con un collega.');
     iMsg(m+(extra||''));
   }
 
@@ -1907,6 +1915,7 @@ function pdfGeometry(opList,OPS){
     c.entries.forEach(function(e){delete e.crew;delete e.evento;delete e.others});
     delete c.cov;delete c.agDone;delete c.pdfw;delete c.chg;delete c.seg;
     c.entries.forEach(function(e){delete e.chg});
+    (c.sw||[]).forEach(function(w){if(w.give){delete w.give.crew;delete w.give.others}});
     return JSON.stringify(Object.assign({app:'ore-auditorium',versione:APP_VERSION,exportedAt:new Date().toISOString()},c));
   }
   function lastBackupTxt(){
@@ -1994,7 +2003,7 @@ function pdfGeometry(opList,OPS){
   $('sConfirm').onclick=function(){
     if(!pendingRestore)return;
     try{localStorage.setItem(KEY+'.prima',JSON.stringify(S))}catch(e){}
-    S.entries=pendingRestore.entries;S.abs=pendingRestore.abs||[];S.disp=pendingRestore.disp||[];
+    S.entries=pendingRestore.entries;S.abs=pendingRestore.abs||[];S.disp=pendingRestore.disp||[];S.sw=pendingRestore.sw||[];
     for(var k in (pendingRestore.settings||{}))S.settings[k]=pendingRestore.settings[k];
     save();clearPending();$('ovS').classList.remove('on');render();toast('Dati ripristinati');
   };
@@ -2141,14 +2150,56 @@ function pdfGeometry(opList,OPS){
   }
   function segSyncProlunga(e){
     if(!e)return;
-    if(vxOf(e)&&e.vx)segAdd({tipo:'prolunga',ref:e.id,date:e.date});
-    else S.seg=segList().filter(function(g){return !(g.tipo==='prolunga'&&g.ref===e.id&&!g.sent)});
+    if(vxOf(e)&&e.vx){
+      segAdd({tipo:'prolunga',ref:e.id,date:e.date});
+      S.seg=segList().filter(function(g){return !(g.tipo==='annulla'&&g.ref==='ann-prolunga-'+e.id&&!g.sent)});
+    }else{
+      var rec=segList().filter(function(g){return g.tipo==='prolunga'&&g.ref===e.id}),mandata=rec.some(function(g){return g.sent||g.opened});
+      S.seg=segList().filter(function(g){return !(g.tipo==='prolunga'&&g.ref===e.id)});
+      if(mandata)segAnnulla('ann-prolunga-'+e.id,e.date,{what:'prolunga',date:e.date,sala:e.sala||e.place||'',ps:e.ps||'',pe:e.pe||''});
+    }
   }
+  /* annullamenti: se una richiesta già segnalata (o che potrebbe esserlo) viene tolta, si prepara la mail per dirlo a Laura */
+  function segAnnulla(key,date,info){
+    var old=segPending().filter(function(g){return g.tipo==='annulla'&&g.ref===key})[0];
+    if(old&&old.info&&old.info.dates&&info.dates){
+      info.dates=old.info.dates.concat(info.dates.filter(function(d){return old.info.dates.indexOf(d)<0})).sort();date=info.dates[0];
+    }
+    segAdd({tipo:'annulla',ref:key,date:date,info:info});
+  }
+  function segDropAbs(type,date){
+    var inviata=false,trovata=false;
+    segList().forEach(function(g){
+      if(g.tipo!=='assenza'||!g.info||!g.info.dates||g.info.type!==type)return;
+      var i=g.info.dates.indexOf(date);if(i<0)return;
+      trovata=true;g.info.dates.splice(i,1);
+      if(g.sent||g.opened)inviata=true;
+      if(g.info.dates.length)g.date=g.info.dates[0];
+    });
+    S.seg=segList().filter(function(g){return !(g.tipo==='assenza'&&!g.sent&&g.info&&g.info.dates&&!g.info.dates.length)});
+    if(inviata||(!trovata&&date>=todayStr()))segAnnulla('ann-assenza-'+type,date,{what:'assenza',type:type,dates:[date]});
+  }
+  function segAbsBack(type,ds){
+    segList().forEach(function(g){
+      if(g.sent||g.tipo!=='annulla'||g.ref!=='ann-assenza-'+type||!g.info)return;
+      g.info.dates=g.info.dates.filter(function(d){return ds.indexOf(d)<0});
+      if(g.info.dates.length)g.date=g.info.dates[0];
+    });
+    S.seg=segList().filter(function(g){return !(g.tipo==='annulla'&&!g.sent&&g.info&&g.info.dates&&!g.info.dates.length)});
+  }
+  function segDropDisp(x){
+    var rec=segList().filter(function(g){return g.tipo==='parziale'&&g.ref===x.id}),mandata=rec.some(function(g){return g.sent||g.opened});
+    S.seg=segList().filter(function(g){return !(g.tipo==='parziale'&&g.ref===x.id)});
+    if(mandata||(!rec.length&&x.date>=todayStr()))segAnnulla('ann-parziale-'+x.id,x.date,{what:'parziale',date:x.date,mode:x.mode,a:x.a,b:x.b,note:x.note||''});
+  }
+  function absLbl(t){return t==='libero'?'Giorno libero (richiesta)':(ABS[t]||t)}
   function segDatesTxt(ds){
     if(ds.length===1)return segDL(ds[0]);
     var ok=true;for(var i=1;i<ds.length;i++){if(addDays(ds[i-1],1)!==ds[i])ok=false}
     return ok?'dal '+segDL(ds[0])+' al '+segDL(ds[ds.length-1])+' ('+ds.length+' giorni)':ds.map(segDL).join('; ');
   }
+  function segSl(x){return segDL(x.date)+' · '+x.start+' – '+x.end+(x.sala?' · '+x.sala:'')+(x.evento?' · '+x.evento:'')}
+  function segCbDates(c){return c.give.date===c.take.date?segDM(c.give.date):segDM(c.give.date)+' ↔ '+segDM(c.take.date)}
   function segCompose(g){
     var sur=(S.settings.surname||'').trim().toUpperCase()||'(cognome)',L=['Ciao Laura,',''],sub;
     if(g.tipo==='prolunga'){
@@ -2159,7 +2210,9 @@ function pdfGeometry(opList,OPS){
       if(dS<0)ex.push('anticipo +'+fmt(-dS));if(dS>0)ex.push('inizio posticipato −'+fmt(dS));
       var sl=e.sala||e.place||'';
       L.push('ti segnalo una variazione di orario sul mio turno.','','Giorno: '+segDL(e.date),'Sala: '+(sl||'da verificare'));
-      L.push('Turno previsto: '+e.ps+' – '+e.pe,'Turno svolto: '+e.start+' – '+e.end,'Variazione: '+ex.join(', '),'Ore svolte: '+fmt(dur(e)));
+      L.push('Turno previsto: '+e.ps+' – '+e.pe,'Turno svolto: '+e.start+' – '+e.end,'Variazione: '+ex.join(', '));
+      if(g.team&&g.team.length)L.push('Vale anche per: '+g.team.map(nice).join(', '));
+      L.push('Ore svolte: '+fmt(dur(e)));
       if(e.vnote)L.push('Motivo: '+e.vnote);
       sub='PROLUNGA · '+sur+' · '+segDM(e.date)+(sl?' · '+sl:'');
     }else if(g.tipo==='assenza'){
@@ -2172,14 +2225,60 @@ function pdfGeometry(opList,OPS){
       L.push('ti comunico una disponibilità parziale.','','Giorno: '+segDL(d.date),'Disponibilità: '+dispTxt(d));
       if(d.note)L.push('Nota: '+d.note);
       sub='DISPONIBILITÀ PARZIALE · '+sur+' · '+segDM(d.date);
+    }else if(g.tipo==='annulla'){
+      var n=g.info;if(!n)return null;
+      if(n.what==='assenza'){
+        var nd=(n.dates||[]).slice().sort();if(!nd.length)return null;
+        L.push('annullo l\'assenza che ti avevo segnalato: i giorni indicati tornano disponibili.','','Tipo: '+absLbl(n.type),'Giorni: '+segDatesTxt(nd));
+        sub='ANNULLAMENTO ASSENZA · '+sur+' · '+segDM(nd[0])+(nd.length>1?' – '+segDM(nd[nd.length-1]):'');
+      }else if(n.what==='parziale'){
+        L.push('annullo la disponibilità parziale che ti avevo segnalato: sono di nuovo disponibile per tutta la giornata.','','Giorno: '+segDL(n.date),'Disponibilità annullata: '+dispTxt(n));
+        sub='ANNULLAMENTO DISPONIBILITÀ PARZIALE · '+sur+' · '+segDM(n.date);
+      }else if(n.what==='prolunga'){
+        L.push('annullo la variazione di orario che ti avevo segnalato sul mio turno: vale l\'orario previsto.','','Giorno: '+segDL(n.date),'Sala: '+(n.sala||'da verificare'));
+        if(n.ps&&n.pe)L.push('Turno previsto: '+n.ps+' – '+n.pe);
+        sub='ANNULLAMENTO PROLUNGA · '+sur+' · '+segDM(n.date)+(n.sala?' · '+n.sala:'');
+      }else if(n.what==='cambio'){
+        L.push('annullo il cambio turno con '+n.who+' che ti avevo comunicato: valgono di nuovo i turni originali.','','Il mio turno (che torna a me):',segSl(n.give),'','Il turno di '+n.who+' (che torna a lui):',segSl(n.take));
+        sub='ANNULLAMENTO CAMBIO TURNO · '+sur+' ↔ '+n.who+' · '+segCbDates(n);
+      }else return null;
+    }else if(g.tipo==='cambio'){
+      var cb=g.info;if(!cb||!cb.give||!cb.take)return null;
+      L.push('ti comunico un cambio turno concordato con il collega '+cb.who+'.','','Il mio turno passa a '+cb.who+':',segSl(cb.give),'','Il turno di '+cb.who+' passa a me:',segSl(cb.take));
+      sub='CAMBIO TURNO · '+sur+' ↔ '+cb.who+' · '+segCbDates(cb);
     }else return null;
     L.push('','Grazie','','(Segnalazione preparata dall\'app Ore Auditorium)');
     return {subject:'[Ore Auditorium] '+sub,body:L.join('\n')};
   }
-  function segLabel(g){return g.tipo==='prolunga'?'Prolunga / anticipo':(g.tipo==='assenza'?'Assenza':'Disponibilità parziale')}
+  /* colleghi della stessa categoria e sala (dalla squadra letta nella convocazione): candidati a «vale anche per» */
+  function segTeam(e){
+    if(!e||!e.crew)return [];
+    var mine=e.crew.filter(function(c){return c[0]!=='X'&&isMe(c[1])}).map(function(c){return c[0]});
+    if(!mine.length)return [];
+    var seen={},out=[];
+    e.crew.forEach(function(c){if(c[0]!=='X'&&!isMe(c[1])&&mine.indexOf(c[0])>=0&&!seen[c[1]]){seen[c[1]]=1;out.push(c[1])}});
+    return out.sort();
+  }
+  function segTeamHtml(g){
+    var isCb=g.tipo==='cambio'||(g.tipo==='annulla'&&g.info&&g.info.what==='cambio');
+    if(g.tipo!=='prolunga'&&!isCb)return '';
+    var e=S.entries.find(function(x){return x.id===g.ref}),t=g.tipo==='prolunga'?segTeam(e):[],sel=g.team||[];
+    return '<div class="segt"><details><summary>'+(isCb?'Se la mail la manda il collega':'Colleghi con la stessa variazione, o ci pensa un collega')+'</summary>'+
+      (t.length?'<p class="hint" style="margin:2px 0 4px">Spunta chi ha fatto la tua stessa variazione: comparirà nella mail («Vale anche per»).</p>'+t.map(function(n){
+        return '<label><input type="checkbox" data-sgt="'+g.id+'" data-n="'+esc(n)+'"'+(sel.indexOf(n)>=0?' checked':'')+'>'+esc(nice(n))+'</label>';
+      }).join(''):'')+
+      '<button type="button" class="btn sm" data-sg="altro" data-id="'+g.id+'">'+(isCb?'La manda il collega: non mando la mail':'Ci pensa un collega: non mando la mail')+'</button></details></div>';
+  }
+  function segLabel(g){
+    if(g.tipo==='annulla'){var w=g.info&&g.info.what;return 'Annullamento · '+(w==='assenza'?'assenza':(w==='prolunga'?'prolunga / anticipo':(w==='cambio'?'cambio turno':'disponibilità parziale')))}
+    if(g.tipo==='cambio')return 'Cambio turno';
+    return g.tipo==='prolunga'?'Prolunga / anticipo':(g.tipo==='assenza'?'Assenza':'Disponibilità parziale');
+  }
   function segDesc(g){
     if(g.tipo==='prolunga'){var e=S.entries.find(function(x){return x.id===g.ref});return e?fmtDay(e.date)+' · '+e.start+' – '+e.end:fmtDay(g.date)}
     if(g.tipo==='assenza'){var i=g.info||{},ds=(i.dates||[]).slice().sort();return (ABS[i.type]||'')+' · '+(ds.length?fmtDay(ds[0])+(ds.length>1?' – '+fmtDay(ds[ds.length-1]):''):'')}
+    if(g.tipo==='cambio'||(g.tipo==='annulla'&&g.info&&g.info.what==='cambio')){var cb=g.info||{};return cb.give&&cb.take?fmtDay(cb.give.date)+(cb.give.date!==cb.take.date?' ↔ '+fmtDay(cb.take.date):'')+' · con '+cb.who:''}
+    if(g.tipo==='annulla'){var n=g.info||{};if(n.what==='assenza'){var nd=(n.dates||[]).slice().sort();return absLbl(n.type)+' · '+(nd.length?fmtDay(nd[0])+(nd.length>1?' – '+fmtDay(nd[nd.length-1]):''):'')}return fmtDay(g.date)}
     return fmtDay(g.date)+' · '+(g.info?dispTxt(g.info):'');
   }
   function segCard(){
@@ -2190,7 +2289,7 @@ function pdfGeometry(opList,OPS){
         return '<div class="segr"><span><b>'+esc(segLabel(g))+'</b><small>'+esc(segDesc(g))+(g.opened?' · mail aperta':'')+'</small></span><span class="acts2">'+
           (g.opened?'<button type="button" class="btn pri sm" data-sg="sent" data-id="'+g.id+'">Inviata</button><button type="button" class="btn sm" data-sg="open" data-id="'+g.id+'">Riapri</button>'
                    :'<button type="button" class="btn pri sm" data-sg="open" data-id="'+g.id+'">Invia mail</button>')+
-          '<button type="button" class="btn sm" data-sg="del" data-id="'+g.id+'" aria-label="Non serve segnalarla">✕</button></span></div>';
+          '<button type="button" class="btn sm" data-sg="del" data-id="'+g.id+'" aria-label="Non serve segnalarla">✕</button></span></div>'+segTeamHtml(g);
       }).join('')+'</div>';
   }
   function segLaunch(url){if(window.__segProva){window.__segProva(url);return}location.href=url}
@@ -2203,15 +2302,24 @@ function pdfGeometry(opList,OPS){
     segLaunch('mailto:'+(/^[^\s@,;]+@[^\s@,;]+$/.test(to)?to:'')+'?subject='+encodeURIComponent(c.subject)+'&body='+encodeURIComponent(c.body));
     segRefresh();
   }
-  function segRefresh(){if(tab==='A')renderA();if(tab==='V')renderV();try{showBanner()}catch(e){}}
+  function segRefresh(){if(tab==='A')renderA();if(tab==='V')renderV();if(tab==='C')renderC();try{showBanner()}catch(e){}}
   function segClick(ev){
     var b=ev.target.closest('[data-sg]');if(!b)return;
     var a=b.getAttribute('data-sg'),id=b.getAttribute('data-id');
     if(a==='open')segOpen(id);
     else if(a==='sent'){var g=segList().find(function(x){return x.id===id});if(g){g.sent=new Date().toISOString();save();segRefresh();toast('Segnalata a Laura')}}
     else if(a==='del'){S.seg=segList().filter(function(x){return x.id!==id});save();segRefresh()}
-    else if(a==='deldisp'){S.disp=dispList().filter(function(x){return x.id!==id});S.seg=segList().filter(function(g){return !(g.tipo==='parziale'&&g.ref===id&&!g.sent)});save();render();toast('Disponibilità tolta')}
+    else if(a==='altro'){var go=segList().find(function(x){return x.id===id});if(go){go.sent=new Date().toISOString();go.byOther=true;save();segRefresh();toast('Segnata: la comunica un collega')}}
+    else if(a==='deldisp'){var dx=dispList().find(function(x){return x.id===id});S.disp=dispList().filter(function(x){return x.id!==id});if(dx)segDropDisp(dx);save();render();toast(segPending().some(function(g){return g.tipo==='annulla'&&g.ref==='ann-parziale-'+id})?'Disponibilità tolta: prepara l\'annullamento per Laura':'Disponibilità tolta')}
   }
+  function segTeamChange(ev){
+    var c=ev.target.closest('[data-sgt]');if(!c)return;
+    var g=segList().find(function(x){return x.id===c.getAttribute('data-sgt')});if(!g)return;
+    var n=c.getAttribute('data-n'),t=(g.team||[]).filter(function(q){return q!==n});
+    if(c.checked)t.push(n);g.team=t;g.opened=null;save();
+  }
+  $('pgA').addEventListener('change',segTeamChange);
+  $('pgV').addEventListener('change',segTeamChange);
   $('pgA').addEventListener('click',segClick);
   $('pgV').addEventListener('click',segClick);
   /* disponibilità parziale: giorno lavorabile ma con un orario limitato (es. visita al mattino) */
@@ -2256,9 +2364,91 @@ function pdfGeometry(opList,OPS){
   });
   $('pgA').addEventListener('input',function(ev){if(ev.target.id==='dpNote')dpSel.note=ev.target.value});
 
+  /* --- cambio turno (v64): scambio con un collega della stessa categoria, nella stessa settimana; si scambiano orari, sala ed evento --- */
+  var cSel={give:'',who:'',date:'',s:'',e:'',sala:'',ev:''},cArm=null;
+  function swList(){return Array.isArray(S.sw)?S.sw:(S.sw=[])}
+  function swSlot(sn,t){return (sn.ps&&sn.ps===t.ps&&sn.pe===t.pe)||(sn.start===t.ps&&sn.end===t.pe)}
+  function swIgnored(t){return swList().some(function(w){return w.give&&w.give.date===t.date&&swSlot(w.give,t)})}
+  function swEv(e){return (e&&e.evento||'').split('\n').map(function(x){return x.trim()}).filter(Boolean).join(' · ')}
+  function swAuto(){
+    var g=S.entries.find(function(x){return x.id===cSel.give});if(!g)return;
+    if(!cSel.date)cSel.date=g.date;
+    if(cSel.date!==g.date)return;
+    var who=(cSel.who||'').trim().toUpperCase(),row=who&&(g.crew||[]).filter(function(c){return c[0]!=='X'&&!isMe(c[1])&&String(c[1]).toUpperCase().indexOf(who)>=0})[0];
+    if(row){cSel.who=row[1];cSel.s=row[2];cSel.e=row[3]}
+    cSel.sala=g.sala||cSel.sala;cSel.ev=swEv(g)||cSel.ev;
+  }
+  function renderC(){
+    var td=addDays(todayStr(),-7),es=S.entries.filter(function(e){return e.date>=td}).sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1}),g=S.entries.find(function(x){return x.id===cSel.give}),cand=g?segTeam(g):[];
+    var h=segCard()+'<div style="font-weight:800;font-size:18px;margin-bottom:2px">Cambio turno</div>'+
+      '<p class="hint" style="margin:0">Scambio di turno concordato con un collega della tua stessa categoria, nella stessa settimana. Cambiano orari, sala ed evento. Laura ne è solo informata.</p>'+
+      '<label for="cGive">Il tuo turno che cedi</label><select id="cGive"><option value="">Scegli il turno…</option>'+es.map(function(e){return '<option value="'+e.id+'"'+(cSel.give===e.id?' selected':'')+'>'+esc(fmtDay(e.date)+' · '+e.start+' – '+(e.end||'…')+(e.sala?' · '+e.sala:''))+'</option>'}).join('')+'</select>'+
+      '<label for="cWho">Cognome del collega</label><input type="text" id="cWho" list="cWhoL" autocomplete="off" value="'+esc(cSel.who)+'" placeholder="es. ROSSI"><datalist id="cWhoL">'+cand.map(function(n){return '<option value="'+esc(n)+'">'}).join('')+'</datalist>'+
+      '<label for="cDate">Giorno del turno che prendi</label><input type="date" id="cDate" value="'+(cSel.date||'')+'">'+
+      '<div class="two"><div><label for="cS">Inizio</label><input type="time" id="cS" value="'+esc(cSel.s)+'"></div><div><label for="cE">Fine</label><input type="time" id="cE" value="'+esc(cSel.e)+'"></div></div>'+
+      '<label for="cSala">Sala</label><input type="text" id="cSala" value="'+esc(cSel.sala)+'">'+
+      '<label for="cEv">Evento (facoltativo)</label><input type="text" id="cEv" value="'+esc(cSel.ev)+'">'+
+      '<p class="hint" style="margin:6px 0 0">Nello stesso giorno, se il collega è nella squadra letta dal PDF, orario, sala ed evento si compilano da soli; negli altri casi scrivili tu.</p>'+
+      '<button type="button" class="btn pri" data-c="do" style="width:100%;margin-top:14px">Fai il cambio e prepara la mail</button>';
+    $('cForm').innerHTML=h;
+    var l=swList().slice().sort(function(a,b){return a.take.date<b.take.date?-1:1});
+    $('cList').innerHTML=l.length?'<div style="padding:12px 0 4px"><div style="font-weight:700;font-size:16px">Cambi turno fatti</div></div>'+l.map(function(w){
+      return '<div class="segr"><span><b class="num">'+fmtDay(w.give.date)+(w.give.date!==w.take.date?' ↔ '+fmtDay(w.take.date):'')+'</b><small>con '+esc(w.who)+' · ora hai '+esc(w.take.start)+' – '+esc(w.take.end)+(w.take.sala?' · '+esc(w.take.sala):'')+'</small></span><button type="button" class="btn sm" data-c="undo" data-id="'+w.id+'">'+(cArm===w.id?'Tocca ancora per annullare':'Annulla il cambio')+'</button></div>';
+    }).join(''):'';
+  }
+  function swDo(){
+    var g=S.entries.find(function(x){return x.id===cSel.give});
+    if(!g){toast('Scegli il tuo turno');return}
+    var who=(cSel.who||'').trim().toUpperCase();
+    if(!who){toast('Scrivi il cognome del collega');return}
+    if(isMe(who)){toast('Il collega deve essere un\'altra persona');return}
+    var d=cSel.date||g.date;
+    if(mondayOf(d)!==mondayOf(g.date)){toast('Il cambio deve restare nella stessa settimana');return}
+    if(!cSel.s||!cSel.e||cSel.s===cSel.e){toast('Scrivi inizio e fine del turno che prendi');return}
+    var sala=(cSel.sala||'').trim();
+    if(!sala){toast('Scrivi la sala');return}
+    var ev=(cSel.ev||'').trim(),id='w'+Date.now()+Math.floor(Math.random()*100000),nid='t'+Date.now()+Math.floor(Math.random()*100000);
+    var snap=JSON.parse(JSON.stringify(g)),ne={id:nid,date:d,start:cSel.s,end:cSel.e,sala:sala,place:g.place||'Auditorium',note:'',confirmed:true,sw:id};
+    if(ev)ne.evento=ev;
+    if(d===g.date){if(g.crew)ne.crew=g.crew;if(g.others)ne.others=g.others;if(!ev&&g.evento)ne.evento=g.evento}
+    var give={date:g.date,start:g.ps||g.start,end:g.pe||g.end,sala:g.sala||'',evento:swEv(g)},take={date:d,start:cSel.s,end:cSel.e,sala:sala,evento:ev};
+    S.entries=S.entries.filter(function(x){return x.id!==g.id});S.entries.push(ne);
+    S.seg=segList().filter(function(x){return !(x.tipo==='prolunga'&&x.ref===g.id&&!x.sent)});
+    swList().push({id:id,at:new Date().toISOString(),who:who,give:snap,take:take,newId:nid});
+    segAdd({tipo:'cambio',ref:id,date:g.date<d?g.date:d,info:{who:who,give:give,take:take}});
+    save();view=mkey(d);cSel={give:'',who:'',date:'',s:'',e:'',sala:'',ev:''};render();toast('Cambio fatto: ora invia la mail a Laura');
+  }
+  function swUndo(id){
+    var w=swList().find(function(x){return x.id===id});if(!w)return;
+    var rec=segList().filter(function(g){return g.tipo==='cambio'&&g.ref===id}),mandata=rec.some(function(g){return g.sent||g.opened}),info=rec[0]&&rec[0].info;
+    S.entries=S.entries.filter(function(x){return x.id!==w.newId&&x.id!==w.give.id});S.entries.push(w.give);
+    S.sw=swList().filter(function(x){return x.id!==id});
+    S.seg=segList().filter(function(g){return !(g.tipo==='cambio'&&g.ref===id)});
+    if(mandata&&info)segAnnulla('ann-cambio-'+id,w.give.date<w.take.date?w.give.date:w.take.date,{what:'cambio',who:info.who,give:info.give,take:info.take});
+    cArm=null;save();view=mkey(w.give.date);render();toast(mandata?'Cambio annullato: ora avvisa Laura':'Cambio annullato');
+  }
+  $('pgC').addEventListener('click',function(ev){
+    var b=ev.target.closest('[data-c]');if(!b)return;
+    var a=b.getAttribute('data-c');
+    if(a==='do')swDo();
+    else if(a==='undo'){var id=b.getAttribute('data-id');if(cArm!==id){cArm=id;renderC()}else swUndo(id)}
+  });
+  $('pgC').addEventListener('click',segClick);
+  $('pgC').addEventListener('change',function(ev){
+    var id=ev.target.id;
+    if(id==='cGive'){cSel.give=ev.target.value;cSel.date='';cSel.s='';cSel.e='';cSel.sala='';cSel.ev='';swAuto();renderC()}
+    else if(id==='cWho'){cSel.who=ev.target.value;swAuto();renderC()}
+    else if(id==='cDate'){cSel.date=ev.target.value;swAuto();renderC()}
+    else segTeamChange(ev);
+  });
+  $('pgC').addEventListener('input',function(ev){
+    var id=ev.target.id;
+    if(id==='cS')cSel.s=ev.target.value;else if(id==='cE')cSel.e=ev.target.value;else if(id==='cSala')cSel.sala=ev.target.value;else if(id==='cEv')cSel.ev=ev.target.value;
+  });
+
   function showTab(t){
     tab=t;
-    ['T','V','A'].forEach(function(x){
+    ['T','V','A','C'].forEach(function(x){
       $('pg'+x).style.display=x===t?'':'none';
       $('tab'+x).classList.toggle('on',x===t);$('tab'+x).setAttribute('aria-selected',x===t);
     });
@@ -2272,10 +2462,12 @@ function pdfGeometry(opList,OPS){
       renderV();
     }
     if(t==='A')renderA();
+    if(t==='C')renderC();
   }
   $('tabT').onclick=function(){showTab('T')};
   $('tabV').onclick=function(){showTab('V')};
   $('tabA').onclick=function(){showTab('A')};
+  $('tabC').onclick=function(){showTab('C')};
   $('pgV').addEventListener('click',function(ev){
     var b=ev.target.closest('[data-act]');if(!b)return;
     var a=b.getAttribute('data-act');
@@ -2400,6 +2592,7 @@ function pdfGeometry(opList,OPS){
         S.abs.push(r);n++;if(!first)first=d;addedD.push(d);
       });
       if(!n){toast('Erano già tutti segnati');return}
+      segAbsBack(aSel.type,addedD);
       segAdd({tipo:'assenza',date:first,ref:'a'+Date.now(),info:{type:aSel.type,dates:addedD,note:(aSel.note||'').trim()}});
       save();view=mkey(first);aSel.note='';render();
       toast('Segnati '+n+(n===1?' giorno':' giorni')+': '+ABS[aSel.type].toLowerCase());
@@ -2433,13 +2626,17 @@ function pdfGeometry(opList,OPS){
     if(!d){toast('Controlla il giorno');return}
     var cnt=t!=='libero'&&$('aeCount').checked,m=cnt?aMinutes($('aeHours').value):null;
     if(cnt&&!m){toast('Scrivi le ore da conteggiare, per esempio 8:00');return}
+    var oT=x.type,oD=x.date;
     x.type=t;x.date=d;x.note=$('aeNote').value.trim();
+    if(oT!==t||oD!==d){segDropAbs(oT,oD);segAbsBack(t,[d]);segAdd({tipo:'assenza',date:d,ref:'a'+Date.now(),info:{type:t,dates:[d],note:x.note}})}
     if(cnt){x.count=true;x.min=m}else{delete x.count;delete x.min}
     save();$('ovAe').classList.remove('on');aEdit=null;render();toast('Assenza salvata');
   };
   $('aeDel').onclick=function(){
     if(!aDelArmed){aDelArmed=true;$('aeDel').textContent='Tocca ancora per eliminare';return}
+    var gx=(S.abs||[]).find(function(q){return q.id===aEdit});
     S.abs=(S.abs||[]).filter(function(q){return q.id!==aEdit});
+    if(gx)segDropAbs(gx.type,gx.date);
     save();$('ovAe').classList.remove('on');aEdit=null;render();toast('Assenza eliminata');
   };
 
@@ -2480,7 +2677,8 @@ function pdfGeometry(opList,OPS){
     var sg0=segList().length,sgOld=addDays(todayStr(),-30),sgDay=addDays(todayStr(),-60);
     S.seg=segList().filter(function(g){return !(g.sent&&g.sent.slice(0,10)<sgOld)&&g.date>=sgDay});
     var dp0=dispList().length;S.disp=dispList().filter(function(x){return x.date>=sgDay});
-    if(S.seg.length!==sg0||S.disp.length!==dp0)ch=true;
+    var sw0=swList().length;S.sw=swList().filter(function(w){return (w.give.date>w.take.date?w.give.date:w.take.date)>=sgDay});
+    if(S.seg.length!==sg0||S.disp.length!==dp0||S.sw.length!==sw0)ch=true;
     var cc=addDays(todayStr(),-60),before=(S.cov||[]).length;
     S.cov=(S.cov||[]).filter(function(r){return r[1]>=cc});
     if(S.cov.length!==before)ch=true;
@@ -3038,8 +3236,11 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=61,APP_DATE='2 novembre 2026';
+  var APP_VERSION=64,APP_DATE='2 novembre 2026';
   var APP_LOG=[
+    [64,'Cambio turno: nuovo tab per scambiare il turno con un collega della stessa categoria (anche in due giorni diversi della stessa settimana). Cambiano orari, sala ed evento e si prepara una sola mail per Laura; le convocazioni successive che riportano ancora il vecchio turno vengono ignorate e segnalate'],
+    [63,'Segnalazioni: nella prolunga si spuntano i colleghi con la stessa variazione («Vale anche per…») oppure si segna «Ci pensa un collega», così Laura non riceve mail doppie'],
+    [62,'Segnalazioni: se togli un giorno libero, un\'assenza, una disponibilità parziale o annulli una prolunga già segnalata, si prepara la mail di annullamento per Laura; testi delle mail più semplici, con la sala sempre indicata'],
     [61,'Segnalazioni a Laura: prolunghe, assenze e disponibilità parziali (es. «disponibile dalle 11») si preparano come email dalla tua posta, con oggetto e cognome già scritti; l\'app ricorda quelle ancora da inviare. Email di Laura in ⚙'],
     [60,'Il riquadro sotto l\'orologio si aggiorna sempre dopo una modifica (anche una prolunga), senza bisogno di ricaricare l\'app'],
     [59,'Pulizia del codice (4 funzioni inutilizzate e una duplicata tolte): nessun cambiamento visibile'],
