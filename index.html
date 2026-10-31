@@ -632,7 +632,6 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     var box=$(id),h=box.querySelector('.th').value;
     return h===''?'':h+':'+box.querySelector('.tm').value;
   }
-  function nowStr(){var d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes())}
   function toM(t){var p=t.split(':');return (+p[0])*60+(+p[1])}
   function fmt(m){var s=m<0?'-':'';m=Math.abs(Math.round(m));return s+Math.floor(m/60)+':'+pad(m%60)}
   function fmtS(m){return (m>0?'+':'')+fmt(m)}
@@ -675,7 +674,6 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   }
   function holidayName(date){return holidays(+date.slice(0,4))[date]||null}
   function isSun(date){return new Date(date+'T12:00:00').getDay()===0}
-  function addDay(date){return ds(+date.slice(0,4),+date.slice(5,7),+date.slice(8,10)+1)}
   /* Ore festive e domenicali: conta il giorno in cui il turno INIZIA. Se inizia di domenica o in un festivo nazionale
      contano tutte le sue ore (anche quelle dopo la mezzanotte); un turno che inizia il giorno prima resta ordinario. */
   function festive(k){
@@ -722,7 +720,11 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     return new Date(+k.slice(0,4),+k.slice(5,7)-1,1).toLocaleDateString('it-IT',{month:'long',year:'numeric'});
   }
 
-  function render(){renderMain();if(tab==='V')renderV();if(tab==='A')renderA();try{wRefresh()}catch(e){}}
+  function render(){
+    renderMain();if(tab==='V')renderV();if(tab==='A')renderA();
+    /* se la ruota ha un intoppo nel disegno, il riquadro sotto l'orologio si aggiorna comunque (prima restava vecchio fino al refresh) */
+    try{wRefresh()}catch(e){try{wBuild();wInfo()}catch(e2){}}
+  }
   function renderMain(){
     $('mlabel').textContent=monthLabel(view);
     var w=workedIn(view),ab=absMonth(view),cr=ab.cr,c=S.settings.contract,bal=w+cr-c,before=beforeStart(view),car=before?0:carry(view),tot=car+bal;
@@ -1204,24 +1206,6 @@ function parseConvocazioni(items, surname, today, geo, forceDate){
     }
     return false;
   }
-  /* testo della cella Evento che contiene la riga y, riga per riga come nel PDF */
-  function eventAt(y){
-    try{
-      var L=ci.evLines;
-      if(!L||!L.length)return '';
-      var hi=null,lo=null;
-      L.forEach(function(v){if(v>=y&&(hi===null||v<hi))hi=v;if(v<y&&(lo===null||v>lo))lo=v});
-      if(hi===null||lo===null)return '';
-      var parts=items.filter(function(it){return it.x>=ci.evL-1&&it.x<ci.evR&&it.y<hi&&it.y>lo&&String(it.s).trim()})
-        .sort(function(a,b){return b.y-a.y});
-      var rows=[];
-      parts.forEach(function(it){
-        var r=rows[rows.length-1];
-        if(r&&Math.abs(r.y-it.y)<2)r.t.push(it);else rows.push({y:it.y,t:[it]});
-      });
-      return rows.map(function(r){return r.t.sort(function(a,b){return a.x-b.x}).map(function(i){return String(i.s).trim().replace(/\s+/g,' ')}).join(' ')}).join('\n');
-    }catch(e){return ''}
-  }
   seps.sort(function(a,b){return b-a});
   function block(y){var n=0;seps.forEach(function(sy){if(sy>y)n++});return n}
   if(!labels.length)return {shifts:[],error:'layout'};
@@ -1447,9 +1431,6 @@ function pdfGeometry(opList,OPS){
       list.push({e:e,reason:reason,planned:planned,newer:newer,act:(planned&&!newer)?'del':'keep'});
     });
     return list.sort(function(a,b){return (a.e.date+a.e.start)<(b.e.date+b.e.start)?-1:1});
-  }
-  function vseg(i,act,label,cur){
-    return '<button type="button" data-v="'+i+'" data-a="'+act+'" class="'+(cur===act?'on':'')+'" aria-pressed="'+(cur===act)+'">'+label+'</button>';
   }
   function vanishedHtml(){
     var h='';
@@ -1710,7 +1691,6 @@ function pdfGeometry(opList,OPS){
     });
   }
 
-  /* applica le scelte */
   /* applica le scelte */
   function setDet(e,r){
     if(r.crewOn){
@@ -2647,7 +2627,6 @@ function pdfGeometry(opList,OPS){
     out.sort(function(a,b){return String(a.p.from||a.date)<String(b.p.from||b.date)?-1:1});
     return out;
   }
-  function agNew(items){return agCandidates(items).filter(function(x){return !(S.agDone||{})[x.name]})}
   var agCreatedCache={};
   /* data di creazione scritta dentro il PDF (si legge senza aprirlo) */
   function agCreated(b64){
@@ -2911,8 +2890,10 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=58,APP_DATE='29 ottobre 2026';
+  var APP_VERSION=60,APP_DATE='1 novembre 2026';
   var APP_LOG=[
+    [60,'Il riquadro sotto l\'orologio si aggiorna sempre dopo una modifica (anche una prolunga), senza bisogno di ricaricare l\'app'],
+    [59,'Pulizia del codice (4 funzioni inutilizzate e una duplicata tolte): nessun cambiamento visibile'],
     [58,'Importazione più sicura: se le date dentro il PDF non tornano con il nome del file (o con la data di creazione), per esempio perché Laura non ha aggiornato la colonna del mese, l\'app non importa e lo dice; propone di usare le date del nome del file'],
     [57,'Prolunga / Anticipo (ex Variazioni): le ore fatte in più restano sempre evidenziate in arancione, anche se poi arriva una nuova convocazione; un turno cambiato a mano nella finestra di conferma dice solo «Turno cambiato · convocazione…» e il segno sparisce con una convocazione uguale'],
     [56,'Turno cambiato rispetto alla convocazione: invece di "prolunga" e "inizio posticipato" l\'app scrive "Turno cambiato · convocazione hh:mm – hh:mm"; se arriva una nuova convocazione uguale al turno svolto, il segno sparisce'],
