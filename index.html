@@ -690,14 +690,16 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   /* Ore festive e domenicali: conta il giorno in cui il turno INIZIA. Se inizia di domenica o in un festivo nazionale
      contano tutte le sue ore (anche quelle dopo la mezzanotte); un turno che inizia il giorno prima resta ordinario. */
   function festive(k){
-    var hol=0,sun=0,by={};
+    var hol=0,sun=0,all=0,by={};
     S.entries.forEach(function(e){
       if(mkey(e.date)!==k||!conf(e))return;
       var d=dur(e);if(!d||d<=0)return;
-      if(holidayName(e.date)){hol+=d;by[e.date]=(by[e.date]||0)+d}
-      else if(isSun(e.date)){sun+=d;by[e.date]=(by[e.date]||0)+d}
+      var h=!!holidayName(e.date),u=isSun(e.date);
+      if(h)hol+=d;
+      if(u)sun+=d;
+      if(h||u){by[e.date]=(by[e.date]||0)+d;all+=d}
     });
-    return {hol:hol,sun:sun,by:by};
+    return {hol:hol,sun:sun,by:by,all:all};
   }
   function festiveRows(k){
     var f=festive(k),set={};
@@ -705,7 +707,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     for(var d=1;d<=n;d++){var x=ds(y,m,d);if(holidayName(x))set[x]=1}
     Object.keys(f.by).forEach(function(x){set[x]=1});
     return {f:f,rows:Object.keys(set).sort().map(function(x){
-      return {date:x,name:holidayName(x)||'Domenica',min:f.by[x]||0,hol:!!holidayName(x)};
+      return {date:x,name:holidayName(x)?holidayName(x)+(isSun(x)?' · domenica':''):'Domenica',min:f.by[x]||0,hol:!!holidayName(x)};
     })};
   }
   function mkey(date){return date.slice(0,7)}
@@ -782,11 +784,11 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
         var other=[];
         if(e.place&&e.place!=='Auditorium')other.push(e.place);
         if(e.note)other.push(e.note);
-        var right=dm==null?'<span class="h open">in corso</span>':'<span class="h num'+(isSun(e.date)&&!holidayName(e.date)?' sunv':'')+(vi?' '+vi.cls:'')+'">'+fmt(dm)+'</span>';
+        var right=dm==null?'<span class="h open">in corso</span>':'<span class="h num'+(isSun(e.date)?' sunv':'')+(vi?' '+vi.cls:'')+'">'+fmt(dm)+'</span>';
         return '<div class="rw'+(isP?' plan':'')+'"><button class="row" data-id="'+e.id+'">'+
           '<span class="t num">'+e.start+' – '+(e.end||'…')+(e.sala?' <em class="sl">'+esc(e.sala)+'</em>':'')+(other.length?'<small>'+esc(other.join(' · '))+'</small>':'')+sub.join('')+'</span>'+right+'</button></div>'+(isP?'<div class="rcf"><button type="button" class="okb" data-ok="'+e.id+'">Conferma</button></div>':'');
       }).join('');
-      return '<div class="day"><div class="dh"><span class="d'+(isSun(date)&&!holidayName(date)?' sunv':'')+'">'+wd+' '+d.getDate()+'</span>'+
+      return '<div class="day"><div class="dh"><span class="d'+(isSun(date)||holidayName(date)?' sunv':'')+'">'+wd+' '+d.getDate()+(holidayName(date)?' <small style="font-weight:600">· festivo · '+esc(holidayName(date))+'</small>':'')+'</span>'+
         (nc>1?'<span class="dt num">Totale '+fmt(tot)+'</span>':'')+'</div>'+rows+
         '<button class="addday" data-date="'+date+'">+ Aggiungi un altro turno</button></div>';
     }).join('');
@@ -944,7 +946,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     $('fBody').innerHTML=r.rows.length?r.rows.map(function(x){
       return '<div class="fr'+(x.min?'':' zero')+(x.hol?'':' sun')+'"><span class="num">'+fmtDay(x.date)+'<small>'+esc(x.name)+'</small></span><b>'+(x.min?fmt(x.min):'non lavorato')+'</b></div>';
     }).join(''):'<p class="hint">Nessuna festività né domenica lavorata in questo mese.</p>';
-    $('fNote').textContent='Festività: '+fmt(r.f.hol)+' · Domeniche: '+fmt(r.f.sun)+' · Insieme: '+fmt(r.f.hol+r.f.sun)+'. Contano solo i turni confermati. Conta il giorno in cui il turno inizia: se inizia di domenica o in un festivo valgono tutte le sue ore, anche dopo la mezzanotte; un turno che inizia il giorno prima resta ordinario.';
+    $('fNote').textContent='Festività: '+fmt(r.f.hol)+' · Domeniche: '+fmt(r.f.sun)+' · Giorni festivi o domenicali, senza doppioni: '+fmt(r.f.all)+'. Contano solo i turni confermati. Conta il giorno in cui il turno inizia: se inizia di domenica o in un festivo valgono tutte le sue ore, anche dopo la mezzanotte; un turno che inizia il giorno prima resta ordinario. Una festività che cade di domenica conta sia come festività sia come domenica.';
     $('ovF').classList.add('on');
   }
   $('sum').onclick=function(ev){if(ev.target.closest('#fdet'))openF()};
@@ -3240,8 +3242,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=64,APP_DATE='2 novembre 2026';
+  var APP_VERSION=65,APP_DATE='1 novembre 2026';
   var APP_LOG=[
+    [65,'Domeniche in festività: se un festivo cade di domenica (come Ognissanti), le ore contano sia come ore in festività sia come ore di domenica; il giorno è segnalato come festivo anche nell\'elenco dei turni'],
     [64,'Cambio turno: nuovo tab per scambiare il turno con un collega della stessa categoria (anche in due giorni diversi della stessa settimana). Cambiano orari, sala ed evento e si prepara una sola mail per Laura; le convocazioni successive che riportano ancora il vecchio turno vengono ignorate e segnalate'],
     [63,'Segnalazioni: nella prolunga si spuntano i colleghi con la stessa variazione («Vale anche per…») oppure si segna «Ci pensa un collega», così Laura non riceve mail doppie'],
     [62,'Segnalazioni: se togli un giorno libero, un\'assenza, una disponibilità parziale o annulli una prolunga già segnalata, si prepara la mail di annullamento per Laura; testi delle mail più semplici, con la sala sempre indicata'],
