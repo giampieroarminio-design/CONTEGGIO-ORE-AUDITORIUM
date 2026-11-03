@@ -432,6 +432,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     <button class="btn" id="rClose">Chiudi</button>
     <button class="btn pri" id="rCopy">Copia testo</button>
     <button class="btn full" id="rShare">Condividi…</button>
+    <button class="btn full" id="rCal">Aggiungi i turni al calendario</button>
   </div>
 </div></div>
 
@@ -502,6 +503,15 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     <div><label for="sFromY" style="margin-top:8px">Anno</label><select id="sFromY"></select></div>
   </div>
   <p class="hint">Scrivi le ore in banca come da cedolino (con il segno meno se sei in debito) e il mese da cui parte il conteggio dell'app: è il residuo all'inizio di quel mese. I mesi precedenti non vengono più sommati. Con "—" resta il metodo di prima: il conteggio parte dal primo mese registrato.</p>
+
+  <label>Google Calendar</label>
+  <p class="hint" style="margin:0 0 8px" id="gcInfo"></p>
+  <div class="two" id="gcBtns">
+    <button class="btn sm" id="gcOn">Collega Google Calendar</button>
+    <button class="btn sm" id="gcNow">Aggiorna ora</button>
+    <button class="btn sm" id="gcOff">Scollega</button>
+  </div>
+  <p class="hint" id="gcMsg" role="status" style="font-weight:600;color:var(--ink)"></p>
 
   <label>Copia di sicurezza</label>
   <p class="hint" style="margin:0 0 8px">I dati stanno solo in questo browser: se cancelli i dati di navigazione o cambi telefono si perdono. Salva ogni tanto un file di backup e conservalo fuori dal telefono (per esempio su Drive). Il backup contiene turni, ore, assenze e impostazioni; squadre ed eventi si riottengono reimportando i PDF.</p>
@@ -619,6 +629,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   function save(){
     try{localStorage.setItem(KEY,JSON.stringify(S));}
     catch(e){toast('Salvataggio non riuscito: fai una copia di sicurezza');}
+    gcQueue();
   }
   function toast(m){var t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(function(){t.classList.remove('on')},2400);}
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
@@ -989,6 +1000,34 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     toast(ok?'Copiato':'Seleziona il testo e copialo a mano');
   }
   $('rCopy').onclick=function(){copyFrom($('rTxt'))};
+  /* calendario: file .ics con i turni del mese (si apre con Google Calendar, Calendario di iPhone e Android) */
+  function icsEsc(t){return String(t||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\r?\n/g,'\\n')}
+  function icsDT(d,t){return d.replace(/-/g,'')+'T'+t.replace(':','')+'00'}
+  function icsMonth(k){
+    var L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Ore Auditorium//IT','CALSCALE:GREGORIAN','METHOD:PUBLISH','X-WR-CALNAME:Turni Auditorium'],n=0,st=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'');
+    S.entries.filter(function(e){return mkey(e.date)===k&&e.start&&e.end}).sort(function(a,b){return (a.date+a.start)<(b.date+b.start)?-1:1}).forEach(function(e){
+      var ed=e.end<=e.start?addDays(e.date,1):e.date,ev=swEv(e),title='Auditorium'+(e.sala?' · '+e.sala:'')+(conf(e)?'':' (da confermare)');
+      L.push('BEGIN:VEVENT','UID:'+e.id+'@ore-auditorium','DTSTAMP:'+st,'DTSTART:'+icsDT(e.date,e.start),'DTEND:'+icsDT(ed,e.end),'SUMMARY:'+icsEsc(title));
+      if(e.place&&e.place!=='Auditorium')L.push('LOCATION:'+icsEsc(e.place));
+      var d=[];if(ev)d.push(ev);if(e.note)d.push(e.note);if(d.length)L.push('DESCRIPTION:'+icsEsc(d.join('\n')));
+      L.push('END:VEVENT');n++;
+    });
+    L.push('END:VCALENDAR');
+    return {n:n,txt:L.join('\r\n')+'\r\n'};
+  }
+  $('rCal').onclick=function(){
+    var r=icsMonth(view);if(!r.n){toast('Nessun turno con orario di fine in questo mese');return}
+    var name='turni-'+view+'.ics';
+    try{
+      var file=new File([r.txt],name,{type:'text/calendar'});
+      if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+        navigator.share({files:[file],title:'Turni '+monthLabel(view)}).catch(function(){});return;
+      }
+    }catch(e){}
+    var u=URL.createObjectURL(new Blob([r.txt],{type:'text/calendar'})),a=document.createElement('a');
+    a.href=u;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(u)},4000);toast('File del calendario pronto: aprilo per aggiungere i '+r.n+' turni');
+  };
   $('rShare').onclick=function(){
     if(navigator.share){navigator.share({title:'Ore lavorate',text:$('rTxt').value}).catch(function(){})}
     else copyFrom($('rTxt'));
@@ -1848,6 +1887,7 @@ function pdfGeometry(opList,OPS){
     $('sCrew').checked=S.settings.crew!==false;
     $('sWheel').checked=S.settings.wheel!==false;
     $('sRem').checked=S.settings.backupRemind!==false;
+    gcUi('');
     $('sBk').value='';
     $('ovS').classList.add('on');
   };
@@ -2451,6 +2491,90 @@ function pdfGeometry(opList,OPS){
     var id=ev.target.id;
     if(id==='cS')cSel.s=ev.target.value;else if(id==='cE')cSel.e=ev.target.value;else if(id==='cSala')cSel.sala=ev.target.value;else if(id==='cEv')cSel.ev=ev.target.value;
   });
+
+  /* --- Google Calendar: scrive i turni in un calendario «Turni Auditorium» del tuo account Google ---
+     Stato in una chiave a parte (non nel backup): {calId, sync:{idTurno:{h:impronta,d:data}}} */
+  var GCAL_CLIENT_ID='200404345220-7lvugd1q34leo6ekrfcopjnd02ki17h2.apps.googleusercontent.com',GC_SCOPE='https://www.googleapis.com/auth/calendar.app.created',GC_KEY='oreAuditorium.gcal';
+  var gc=(function(){try{return JSON.parse(localStorage.getItem(GC_KEY)||'{}')||{}}catch(e){return {}}})(),gcTok=null,gcExp=0,gcTimer=null,gcBusy=false,gcPending=false;
+  function gcSaveState(){try{localStorage.setItem(GC_KEY,JSON.stringify(gc))}catch(e){}}
+  function gcClient(){return window.__gcalId||GCAL_CLIENT_ID}
+  function gcEvId(id){var h='oa';for(var i=0;i<String(id).length;i++)h+=('0'+String(id).charCodeAt(i).toString(16)).slice(-2);return h}
+  function gcToken(interactive){
+    return new Promise(function(res,rej){
+      if(gcTok&&Date.now()<gcExp-60000){res(gcTok);return}
+      function go(){
+        try{
+          var c=google.accounts.oauth2.initTokenClient({client_id:gcClient(),scope:GC_SCOPE,
+            callback:function(r){if(r&&r.access_token){gcTok=r.access_token;gcExp=Date.now()+(r.expires_in||3600)*1000;res(gcTok)}else rej(new Error('auth'))},
+            error_callback:function(){rej(new Error('auth'))}});
+          c.requestAccessToken({prompt:interactive&&!gc.calId?'consent':''});
+        }catch(e){rej(e)}
+      }
+      if(window.google&&google.accounts&&google.accounts.oauth2){go();return}
+      var sc=document.createElement('script');sc.src='https://accounts.google.com/gsi/client';sc.onload=go;sc.onerror=function(){rej(new Error('rete'))};document.head.appendChild(sc);
+    });
+  }
+  function gcFetch(method,path,body){
+    return window.fetch('https://www.googleapis.com/calendar/v3/'+path,{method:method,headers:{'Authorization':'Bearer '+gcTok,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined}).then(function(r){
+      if(r.status===401){gcTok=null;throw new Error('auth')}
+      if(r.status===204)return {http:204};
+      return r.json().catch(function(){return {}}).then(function(j){j.http=r.status;return j});
+    });
+  }
+  function gcPayload(e){
+    var ed=e.end<=e.start?addDays(e.date,1):e.date,ev=swEv(e),d=[];
+    if(ev)d.push(ev);if(e.note)d.push(e.note);
+    var o={summary:'Auditorium'+(e.sala?' · '+e.sala:'')+(conf(e)?'':' (da confermare)'),status:conf(e)?'confirmed':'tentative',
+      start:{dateTime:e.date+'T'+e.start+':00',timeZone:'Europe/Rome'},end:{dateTime:ed+'T'+e.end+':00',timeZone:'Europe/Rome'},reminders:{useDefault:false,overrides:[]}};
+    if(e.place&&e.place!=='Auditorium')o.location=e.place;
+    if(d.length)o.description=d.join('\n');
+    return o;
+  }
+  function gcUi(msg){
+    var ok=!!gcClient(),on=!!gc.calId;
+    $('gcInfo').textContent=!ok?'Non ancora attivo: manca la registrazione dell\'app presso Google.':(on?'Collegato: i turni vengono scritti nel calendario «Turni Auditorium» del tuo Google Calendar ogni volta che importi o confermi turni.':'Scrive i turni in un calendario «Turni Auditorium» del tuo Google Calendar e lo tiene aggiornato quando importi o confermi turni. Ti viene chiesto di accedere a Google una volta.');
+    $('gcOn').style.display=ok&&!on?'':'none';$('gcNow').style.display=ok&&on?'':'none';$('gcOff').style.display=ok&&on?'':'none';
+    $('gcBtns').style.display=ok?'':'none';
+    if(msg!=null)$('gcMsg').textContent=msg;
+  }
+  function gcSync(interactive){
+    if(!gc.calId||gcBusy)return Promise.resolve();
+    gcBusy=true;gcPending=false;
+    var cut=addDays(todayStr(),-7),cur={},ops=[];
+    S.entries.forEach(function(e){if(e.start&&e.end&&e.date>=cut){var p=gcPayload(e),h=JSON.stringify(p);cur[e.id]=1;if(!gc.sync[e.id]||gc.sync[e.id].h!==h)ops.push({k:'up',id:e.id,p:p,h:h,d:e.date})}});
+    Object.keys(gc.sync).forEach(function(id){if(!cur[id]){if(gc.sync[id].d>=cut)ops.push({k:'del',id:id});else delete gc.sync[id]}});
+    var n=0;
+    return gcToken(interactive).then(function(){
+      return ops.reduce(function(pr,o){return pr.then(function(){
+        var eid=gcEvId(o.id),base='calendars/'+encodeURIComponent(gc.calId)+'/events';
+        if(o.k==='del')return gcFetch('DELETE',base+'/'+eid).then(function(r){if(r.http<300||r.http===404||r.http===410){delete gc.sync[o.id];n++}else throw new Error('api')});
+        var b=JSON.parse(JSON.stringify(o.p));b.id=eid;
+        return gcFetch('POST',base,b).then(function(r){
+          if(r.http===409){delete b.id;return gcFetch('PUT',base+'/'+eid,b)}
+          return r;
+        }).then(function(r){if(r.http<300){gc.sync[o.id]={h:o.h,d:o.d};n++}else throw new Error('api')});
+      })},Promise.resolve());
+    }).then(function(){gcSaveState();gcBusy=false;gcUi(n?'Google Calendar aggiornato ('+n+(n===1?' turno':' turni')+').':'Google Calendar è già aggiornato.');return n},function(e){
+      gcSaveState();gcBusy=false;gcPending=true;
+      gcUi(e&&e.message==='api'?'Google non ha accettato alcuni turni: riprova tra poco con «Aggiorna ora».':'Per aggiornare Google Calendar tocca «Aggiorna ora» nelle impostazioni (serve il tuo consenso).');
+    });
+  }
+  function gcQueue(){
+    if(!gc||!gc.calId)return;
+    clearTimeout(gcTimer);gcTimer=setTimeout(function(){gcSync(false)},1500);
+  }
+  $('gcOn').onclick=function(){
+    gcUi('Accedi a Google…');
+    gcToken(true).then(function(){
+      return gcFetch('POST','calendars',{summary:'Turni Auditorium',timeZone:'Europe/Rome'});
+    }).then(function(r){
+      if(!r.id)throw new Error('api');
+      gc.calId=r.id;gc.sync={};gcSaveState();return gcSync(true);
+    }).catch(function(){gcUi('Collegamento non riuscito: controlla di aver dato il consenso a Google e riprova.')});
+  };
+  $('gcNow').onclick=function(){gcUi('Aggiorno…');gcSync(true)};
+  $('gcOff').onclick=function(){gc={};gcSaveState();gcTok=null;gcUi('Scollegato. Il calendario «Turni Auditorium» resta nel tuo Google Calendar: puoi eliminarlo da lì.')};
+  window.__gcalProva={sync:function(){return gcSync(true)},state:function(){return gc}};
 
   function showTab(t){
     tab=t;
@@ -3242,8 +3366,10 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=65,APP_DATE='1 novembre 2026';
+  var APP_VERSION=67,APP_DATE='1 novembre 2026';
   var APP_LOG=[
+    [67,'Google Calendar: nelle impostazioni «Collega Google Calendar» crea il calendario «Turni Auditorium» e lo aggiorna da solo quando importi o confermi turni (turni da confermare segnati, nessun promemoria)'],
+    [66,'Calendario: dal riepilogo del mese il pulsante «Aggiungi i turni al calendario» crea un file che si apre con Google Calendar o con il calendario del telefono (iPhone e Android), senza promemoria'],
     [65,'Domeniche in festività: se un festivo cade di domenica (come Ognissanti), le ore contano sia come ore in festività sia come ore di domenica; il giorno è segnalato come festivo anche nell\'elenco dei turni'],
     [64,'Cambio turno: nuovo tab per scambiare il turno con un collega della stessa categoria (anche in due giorni diversi della stessa settimana). Cambiano orari, sala ed evento e si prepara una sola mail per Laura; le convocazioni successive che riportano ancora il vecchio turno vengono ignorate e segnalate'],
     [63,'Segnalazioni: nella prolunga si spuntano i colleghi con la stessa variazione («Vale anche per…») oppure si segna «Ci pensa un collega», così Laura non riceve mail doppie'],
