@@ -2506,7 +2506,7 @@ function pdfGeometry(opList,OPS){
         try{
           var c=google.accounts.oauth2.initTokenClient({client_id:gcClient(),scope:GC_SCOPE,
             callback:function(r){if(r&&r.access_token){gcTok=r.access_token;gcExp=Date.now()+(r.expires_in||3600)*1000;res(gcTok)}else rej(new Error('auth'))},
-            error_callback:function(){rej(new Error('auth'))}});
+            error_callback:function(er){var x=new Error('auth');x.det='accesso a Google rifiutato o interrotto ('+((er&&er.type)||'errore')+')';rej(x)}});
           c.requestAccessToken({prompt:interactive&&!gc.calId?'consent':''});
         }catch(e){rej(e)}
       }
@@ -2568,9 +2568,9 @@ function pdfGeometry(opList,OPS){
     gcToken(true).then(function(){
       return gcFetch('POST','calendars',{summary:'Turni Auditorium',timeZone:'Europe/Rome'});
     }).then(function(r){
-      if(!r.id)throw new Error('api');
+      if(!r.id){var x=new Error('api');x.det='Google risponde: '+((r.error&&r.error.message)||'errore')+' (codice '+r.http+')';throw x}
       gc.calId=r.id;gc.sync={};gcSaveState();return gcSync(true);
-    }).catch(function(){gcUi('Collegamento non riuscito: controlla di aver dato il consenso a Google e riprova.')});
+    }).catch(function(e){gcUi('Collegamento non riuscito'+(e&&e.det?': '+e.det:(e&&e.message==='rete'?': nessun collegamento con Google':''))+'.')});
   };
   $('gcNow').onclick=function(){gcUi('Aggiorno…');gcSync(true)};
   $('gcOff').onclick=function(){gc={};gcSaveState();gcTok=null;gcUi('Scollegato. Il calendario «Turni Auditorium» resta nel tuo Google Calendar: puoi eliminarlo da lì.')};
@@ -2927,16 +2927,18 @@ function pdfGeometry(opList,OPS){
   var docList=[],CONV_KEY=KEY+'.conv',convItems=[],convAt=0,convBusy=false,SCH_KEY=KEY+'.sch',schItems=[],schAt=0,schErr='',schBusy=false,schBlob={},schCur=null;
   try{var schR=JSON.parse(localStorage.getItem(SCH_KEY)||'null');if(schR&&Array.isArray(schR.items)){schItems=schR.items;schAt=schR.at||0}}catch(e){}
   var SCH_SALE=[['SANTA CECILIA','SC'],['2800','SC'],['SINOPOLI','SI'],['1200','SI'],['PETRASSI','PE'],['700','PE'],['TEATRO STUDIO','TS'],['STUDIO BORGNA','TS'],['BORGNA','TS'],['300','TS'],['CASA DEL JAZZ','CDJ'],['CDJ','CDJ'],['MASSENZIO','CAV'],['CAVEA','CAV']];
-  var SCH_SKIP=['SALA','SOCIETA','ITALIANA','CONGRESSO','NAZIONALE','DEL','DELLA','DEI','PER','THE','TRIO','LIVE','SUMMERTIME','CONCERTO','PROVE','SOUND','CHECK','CASA','JAZZ','CDJ','CNP','STAGIONE','ESTIVA','INFO','HALL'];
+  var SCH_SKIP=['SALA','SOCIETA','ITALIANA','CONGRESSO','NAZIONALE','DEL','DELLA','DEI','PER','THE','TRIO','LIVE','SUMMERTIME','CONCERTO','PROVE','SOUND','CHECK','CASA','JAZZ','CDJ','CNP','STAGIONE','ESTIVA','INFO','HALL','RIDER','SCHEDA','TECNICA','TENICA'];
   function schNorm(s){var t=String(s||'').toUpperCase();if(t.normalize)t=t.normalize('NFD').replace(/[\u0300-\u036f]/g,'');return t.replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim()}
   function schSalaPos(n){var best=null;SCH_SALE.forEach(function(k){var m=new RegExp('(^| )'+k[0]+'( |$)').exec(n);if(m){var i=m.index+(m[1]?1:0);if(!best||i<best.i)best={i:i,len:k[0].length,c:k[1]}}});return best}
   function schCanon(x){var b=schSalaPos(schNorm(x));return b?b.c:schNorm(x)}
   function schParole(s){return schNorm(s).split(' ').filter(function(w){return w.length>2&&!/^\d+$/.test(w)&&SCH_SKIP.indexOf(w)<0})}
   function schEq(a,b){return a===b||(a.length>=5&&b.length>=5&&a.slice(0,5)===b.slice(0,5))}
   function schedaParse(nome){
-    var n=String(nome||'').replace(/\.pdf$/i,'').replace(/_/g,' ').replace(/\s+/g,' ').trim();
-    var m=n.match(/^(\d{1,2}(?: ?- ?\d{1,2})*) (\d{1,2}) (\d{2}|\d{4}) (.+)$/);
+    var n=String(nome||'').replace(/\.pdf$/i,'').replace(/_/g,' ').replace(/\s+/g,' ').trim().replace(/^scheda te\w+ /i,'');
+    var m=n.match(/^(\d{1,2}(?: ?- ?\d{1,2})*) (\d{1,2}|[A-Za-z]{3,9}) (\d{2}|\d{4}) (.+)$/);
     if(!m||/convocazion/i.test(n))return null;
+    var MESI={gen:1,jan:1,feb:2,mar:3,apr:4,mag:5,may:5,giu:6,jun:6,lug:7,jul:7,ago:8,aug:8,set:9,sep:9,ott:10,oct:10,nov:11,dic:12,dec:12};
+    if(isNaN(+m[2])){m[2]=MESI[m[2].slice(0,3).toLowerCase()];if(!m[2])return null}
     var t=m[1].split(/ ?- ?/).map(Number),mese=+m[2],anno=+m[3]<100?2000+(+m[3]):+m[3],dates=[];
     if(mese<1||mese>12)return null;
     function ds2(y,mo,d){return y+'-'+pad(mo)+'-'+pad(d)}
@@ -3366,8 +3368,10 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=67,APP_DATE='1 novembre 2026';
+  var APP_VERSION=69,APP_DATE='1 novembre 2026';
   var APP_LOG=[
+    [69,'Schede evento: riconosciute anche le schede con nome «Scheda tecnica 14 Nov 26 cdj …» (mese a lettere, sala abbreviata, anche con refusi come «tenica»)'],
+    [68,'Google Calendar: se il collegamento non riesce ora l\'app dice il motivo preciso'],
     [67,'Google Calendar: nelle impostazioni «Collega Google Calendar» crea il calendario «Turni Auditorium» e lo aggiorna da solo quando importi o confermi turni (turni da confermare segnati, nessun promemoria)'],
     [66,'Calendario: dal riepilogo del mese il pulsante «Aggiungi i turni al calendario» crea un file che si apre con Google Calendar o con il calendario del telefono (iPhone e Android), senza promemoria'],
     [65,'Domeniche in festività: se un festivo cade di domenica (come Ognissanti), le ore contano sia come ore in festività sia come ore di domenica; il giorno è segnalato come festivo anche nell\'elenco dei turni'],
