@@ -24,7 +24,7 @@
   --acc:#6E94FF;--accInk:#0F161D;--pos:#4CC79A;--neg:#FF8A78;--warn:#E6B04A;--track:#2A3744;--sun:#FFA24D;--cnt:#B9A0FF;
 }
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}   /* niente zoom con il doppio tocco su iPhone (Safari); lo zoom con due dita resta */
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font-family:'Figtree',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:16px;line-height:1.4;min-height:100%}
 .wrap{max-width:560px;margin:0 auto;padding:12px 14px 120px}
@@ -3368,8 +3368,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=69,APP_DATE='1 novembre 2026';
+  var APP_VERSION=70,APP_DATE='1 novembre 2026';
   var APP_LOG=[
+    [70,'iPhone (Safari): il doppio tocco veloce sulle frecce del calendario non ingrandisce più la pagina'],
     [69,'Schede evento: riconosciute anche le schede con nome «Scheda tecnica 14 Nov 26 cdj …» (mese a lettere, sala abbreviata, anche con refusi come «tenica») e quelle col giorno solo nell\'oggetto della mail; la sala «Studio Theatre» è il Teatro Studio'],
     [68,'Google Calendar: se il collegamento non riesce ora l\'app dice il motivo preciso'],
     [67,'Google Calendar: nelle impostazioni «Collega Google Calendar» crea il calendario «Turni Auditorium» e lo aggiorna da solo quando importi o confermi turni (turni da confermare segnati, nessun promemoria)'],
