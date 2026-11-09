@@ -2926,7 +2926,7 @@ function pdfGeometry(opList,OPS){
   /* --- schede evento (v48): elenco dalla casella, abbinato per giorno + nome dell'evento (+ sala) --- */
   var docList=[],CONV_KEY=KEY+'.conv',convItems=[],convAt=0,convBusy=false,SCH_KEY=KEY+'.sch',schItems=[],schAt=0,schErr='',schBusy=false,schBlob={},schCur=null;
   try{var schR=JSON.parse(localStorage.getItem(SCH_KEY)||'null');if(schR&&Array.isArray(schR.items)){schItems=schR.items;schAt=schR.at||0}}catch(e){}
-  var SCH_SALE=[['SANTA CECILIA','SC'],['2800','SC'],['SINOPOLI','SI'],['1200','SI'],['PETRASSI','PE'],['700','PE'],['TEATRO STUDIO','TS'],['STUDIO BORGNA','TS'],['BORGNA','TS'],['300','TS'],['CASA DEL JAZZ','CDJ'],['CDJ','CDJ'],['MASSENZIO','CAV'],['CAVEA','CAV']];
+  var SCH_SALE=[['SANTA CECILIA','SC'],['2800','SC'],['SINOPOLI','SI'],['1200','SI'],['PETRASSI','PE'],['700','PE'],['TEATRO STUDIO','TS'],['STUDIO THEATRE','TS'],['THEATRE STUDIO','TS'],['STUDIO BORGNA','TS'],['BORGNA','TS'],['300','TS'],['CASA DEL JAZZ','CDJ'],['CDJ','CDJ'],['MASSENZIO','CAV'],['CAVEA','CAV']];
   var SCH_SKIP=['SALA','SOCIETA','ITALIANA','CONGRESSO','NAZIONALE','DEL','DELLA','DEI','PER','THE','TRIO','LIVE','SUMMERTIME','CONCERTO','PROVE','SOUND','CHECK','CASA','JAZZ','CDJ','CNP','STAGIONE','ESTIVA','INFO','HALL','RIDER','SCHEDA','TECNICA','TENICA'];
   function schNorm(s){var t=String(s||'').toUpperCase();if(t.normalize)t=t.normalize('NFD').replace(/[\u0300-\u036f]/g,'');return t.replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim()}
   function schSalaPos(n){var best=null;SCH_SALE.forEach(function(k){var m=new RegExp('(^| )'+k[0]+'( |$)').exec(n);if(m){var i=m.index+(m[1]?1:0);if(!best||i<best.i)best={i:i,len:k[0].length,c:k[1]}}});return best}
@@ -3370,7 +3370,7 @@ function pdfGeometry(opList,OPS){
   })();
   var APP_VERSION=69,APP_DATE='1 novembre 2026';
   var APP_LOG=[
-    [69,'Schede evento: riconosciute anche le schede con nome «Scheda tecnica 14 Nov 26 cdj …» (mese a lettere, sala abbreviata, anche con refusi come «tenica»)'],
+    [69,'Schede evento: riconosciute anche le schede con nome «Scheda tecnica 14 Nov 26 cdj …» (mese a lettere, sala abbreviata, anche con refusi come «tenica») e quelle col giorno solo nell\'oggetto della mail; la sala «Studio Theatre» è il Teatro Studio'],
     [68,'Google Calendar: se il collegamento non riesce ora l\'app dice il motivo preciso'],
     [67,'Google Calendar: nelle impostazioni «Collega Google Calendar» crea il calendario «Turni Auditorium» e lo aggiorna da solo quando importi o confermi turni (turni da confermare segnati, nessun promemoria)'],
     [66,'Calendario: dal riepilogo del mese il pulsante «Aggiungi i turni al calendario» crea un file che si apre con Google Calendar o con il calendario del telefono (iPhone e Android), senza promemoria'],
