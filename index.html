@@ -629,7 +629,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   function save(){
     try{localStorage.setItem(KEY,JSON.stringify(S));}
     catch(e){toast('Salvataggio non riuscito: fai una copia di sicurezza');}
-    gcQueue();
+    gcQueue();shSync();
   }
   function toast(m){var t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(toast._t);toast._t=setTimeout(function(){t.classList.remove('on')},2400);}
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
@@ -2576,6 +2576,48 @@ function pdfGeometry(opList,OPS){
   $('gcOff').onclick=function(){gc={};gcSaveState();gcTok=null;gcUi('Scollegato. Il calendario «Turni Auditorium» resta nel tuo Google Calendar: puoi eliminarlo da lì.')};
   window.__gcalProva={sync:function(){return gcSync(true)},state:function(){return gc}};
 
+  /* --- registro condiviso delle segnalazioni (v71): ogni segnalazione registrata finisce, tramite lo script della casella, in un foglio Google
+     «Segnalazioni Ore Auditorium»; una riga per segnalazione, che si aggiorna (da inviare → mail aperta → inviata). Stato in chiavi a parte (non nel backup). --- */
+  var SH_Q=KEY+'.shq',SH_K=KEY+'.shk',shBusy=false,shTimer=null;
+  function shGet(k,d){try{var v=JSON.parse(localStorage.getItem(k)||'null');return v==null?d:v}catch(e){return d}}
+  function shPut(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  function shStato(g){return g.sent?(g.byOther?'comunicata da un collega':'inviata'):(g.opened?'mail aperta':'da inviare')}
+  function shRow(g,stato){
+    var det=segDesc(g);
+    if(g.tipo==='prolunga'){var e=S.entries.find(function(x){return x.id===g.ref});if(e&&e.ps&&e.pe)det+=' (previsto '+e.ps+' – '+e.pe+(e.sala?' · '+e.sala:'')+')'}
+    return {id:g.id,at:g.at||'',cognome:S.settings.surname||'',tipo:segLabel(g),giorno:g.date||'',dettaglio:det,colleghi:(g.team||[]).join(', '),stato:stato}
+  }
+  /* confronta le segnalazioni di adesso con quelle già comunicate al foglio e mette in coda quello che è cambiato */
+  function shSync(){
+    try{
+      var known=shGet(SH_K,{}),q=shGet(SH_Q,[]),now={},ch=false;
+      segList().forEach(function(g){
+        var st=shStato(g),r=shRow(g,st),sig=st+'|'+r.tipo+'|'+r.giorno+'|'+r.dettaglio+'|'+r.colleghi;now[g.id]=sig;
+        if(known[g.id]!==sig){q=q.filter(function(x){return x.id!==g.id});q.push(r);ch=true}
+      });
+      Object.keys(known).forEach(function(id){
+        if(now[id])return;
+        var st=String(known[id]).split('|')[0];
+        if(st==='da inviare'||st==='mail aperta'){q=q.filter(function(x){return x.id!==id});q.push({id:id,stato:'ritirata'});ch=true}
+      });
+      if(ch||Object.keys(known).length!==Object.keys(now).length){shPut(SH_K,now);shPut(SH_Q,q.slice(-200))}
+      if(q.length)shLater();
+    }catch(e){}
+  }
+  function shLater(){clearTimeout(shTimer);shTimer=setTimeout(shFlush,1500)}
+  function shFlush(){
+    if(shBusy||!agLink)return;
+    var q=shGet(SH_Q,[]);if(!q.length)return;
+    var part=q.slice(0,5);shBusy=true;
+    agCall('action=segnala&r='+encodeURIComponent(JSON.stringify(part)),25000).then(function(r){
+      if(!r||!r.ok)throw new Error('risposta');
+      var ids={};part.forEach(function(x){ids[x.id+'|'+x.stato]=1});
+      shPut(SH_Q,shGet(SH_Q,[]).filter(function(x){return !ids[x.id+'|'+x.stato]}));
+      shBusy=false;shLater();
+    }).catch(function(){shBusy=false});   // se non riesce resta in coda e riprova al prossimo salvataggio o apertura
+  }
+  window.__shProva={sync:shSync,flush:shFlush};
+
   function showTab(t){
     tab=t;
     ['T','V','A','C'].forEach(function(x){
@@ -3368,8 +3410,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=70,APP_DATE='1 novembre 2026';
+  var APP_VERSION=71,APP_DATE='9 novembre 2026';
   var APP_LOG=[
+    [71,'Registro delle segnalazioni: prolunghe, giorni liberi, disponibilità e cambi turno registrati nell\'app finiscono anche in un foglio Google condivisibile con Laura (una riga per segnalazione, con lo stato)'],
     [70,'iPhone (Safari): il doppio tocco veloce sulle frecce del calendario non ingrandisce più la pagina'],
     [69,'Schede evento: riconosciute anche le schede con nome «Scheda tecnica 14 Nov 26 cdj …» (mese a lettere, sala abbreviata, anche con refusi come «tenica») e quelle col giorno solo nell\'oggetto della mail; la sala «Studio Theatre» è il Teatro Studio'],
     [68,'Google Calendar: se il collegamento non riesce ora l\'app dice il motivo preciso'],
@@ -3713,7 +3756,7 @@ function pdfGeometry(opList,OPS){
   (function(){var ch=false;S.entries.forEach(function(e){if(e.sala){var n=salaName(e.sala);if(n!==e.sala){e.sala=n;ch=true}}});if(ch)save()})();
   /* app riaperta dopo ore senza ricaricare la pagina: i controlli automatici (3 ore) ripartono */
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&agLink)agAuto().then(schAuto)});
-  render();showBanner();agInit();handleLink();
+  render();showBanner();agInit();handleLink();setTimeout(function(){shSync();shFlush()},2500);
 })();
 </script>
 </body>
