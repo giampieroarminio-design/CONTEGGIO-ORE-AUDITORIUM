@@ -2495,7 +2495,7 @@ function pdfGeometry(opList,OPS){
   /* --- Google Calendar: scrive i turni in un calendario «Turni Auditorium» del tuo account Google ---
      Stato in una chiave a parte (non nel backup): {calId, sync:{idTurno:{h:impronta,d:data}}} */
   var GCAL_CLIENT_ID='200404345220-7lvugd1q34leo6ekrfcopjnd02ki17h2.apps.googleusercontent.com',GC_SCOPE='https://www.googleapis.com/auth/calendar.app.created',GC_KEY='oreAuditorium.gcal';
-  var gc=(function(){try{return JSON.parse(localStorage.getItem(GC_KEY)||'{}')||{}}catch(e){return {}}})(),gcTok=null,gcExp=0,gcTimer=null,gcBusy=false,gcPending=false;
+  var gc=(function(){try{return JSON.parse(localStorage.getItem(GC_KEY)||'{}')||{}}catch(e){return {}}})(),gcTok=null,gcExp=0,gcTimer=null,gcBusy=false,gcPending=false,gcSnooze=false;
   function gcSaveState(){try{localStorage.setItem(GC_KEY,JSON.stringify(gc))}catch(e){}}
   function gcClient(){return window.__gcalId||GCAL_CLIENT_ID}
   function gcEvId(id){var h='oa';for(var i=0;i<String(id).length;i++)h+=('0'+String(id).charCodeAt(i).toString(16)).slice(-2);return h}
@@ -2539,10 +2539,13 @@ function pdfGeometry(opList,OPS){
   }
   function gcSync(interactive){
     if(!gc.calId||gcBusy)return Promise.resolve();
-    gcBusy=true;gcPending=false;
     var cut=addDays(todayStr(),-7),cur={},ops=[];
     S.entries.forEach(function(e){if(e.start&&e.end&&e.date>=cut){var p=gcPayload(e),h=JSON.stringify(p);cur[e.id]=1;if(!gc.sync[e.id]||gc.sync[e.id].h!==h)ops.push({k:'up',id:e.id,p:p,h:h,d:e.date})}});
     Object.keys(gc.sync).forEach(function(id){if(!cur[id]){if(gc.sync[id].d>=cut)ops.push({k:'del',id:id});else delete gc.sync[id]}});
+    if(!ops.length){gcSaveState();gcPending=false;return Promise.resolve()}
+    /* senza tocco dell'utente non si chiede mai l'accesso a Google (su telefono aprirebbe una pagina di Google): si avvisa e basta */
+    if(!interactive&&!(gcTok&&Date.now()<gcExp-60000)){gcPending=true;try{showBanner()}catch(e){}return Promise.resolve()}
+    gcBusy=true;gcPending=false;
     var n=0;
     return gcToken(interactive).then(function(){
       return ops.reduce(function(pr,o){return pr.then(function(){
@@ -2555,7 +2558,7 @@ function pdfGeometry(opList,OPS){
         }).then(function(r){if(r.http<300){gc.sync[o.id]={h:o.h,d:o.d};n++}else throw new Error('api')});
       })},Promise.resolve());
     }).then(function(){gcSaveState();gcBusy=false;gcUi(n?'Google Calendar aggiornato ('+n+(n===1?' turno':' turni')+').':'Google Calendar è già aggiornato.');return n},function(e){
-      gcSaveState();gcBusy=false;gcPending=true;
+      gcSaveState();gcBusy=false;gcPending=true;try{showBanner()}catch(x){}
       gcUi(e&&e.message==='api'?'Google non ha accettato alcuni turni: riprova tra poco con «Aggiorna ora».':'Per aggiornare Google Calendar tocca «Aggiorna ora» nelle impostazioni (serve il tuo consenso).');
     });
   }
@@ -3410,8 +3413,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=71,APP_DATE='9 novembre 2026';
+  var APP_VERSION=72,APP_DATE='9 novembre 2026';
   var APP_LOG=[
+    [72,'Google Calendar: l\'app non chiede più da sola l\'accesso a Google all\'apertura; se i turni sono cambiati compare un avviso con il pulsante «Aggiorna ora»'],
     [71,'Registro delle segnalazioni: prolunghe, giorni liberi, disponibilità e cambi turno registrati nell\'app finiscono anche in un foglio Google condivisibile con Laura (una riga per segnalazione, con lo stato)'],
     [70,'iPhone (Safari): il doppio tocco veloce sulle frecce del calendario non ingrandisce più la pagina'],
     [69,'Schede evento: riconosciute anche le schede con nome «Scheda tecnica 14 Nov 26 cdj …» (mese a lettere, sala abbreviata, anche con refusi come «tenica») e quelle col giorno solo nell\'oggetto della mail; la sala «Studio Theatre» è il Teatro Studio'],
@@ -3692,6 +3696,9 @@ function pdfGeometry(opList,OPS){
     }else if(segPending().length&&!segSnooze){
       cls='warn';var ng=segPending().length;
       html='<b>Hai '+ng+(ng===1?' segnalazione':' segnalazioni')+' da inviare a Laura.</b><br><button type="button" id="stSg">Vedi</button> <button type="button" id="stSgLater">Più tardi</button>';
+    }else if(gc&&gc.calId&&gcPending&&!gcSnooze){
+      cls='warn';
+      html='<b>Google Calendar è da aggiornare.</b> Premi il pulsante: Google può chiederti di accedere.<br><button type="button" id="stGc">Aggiorna ora</button> <button type="button" id="stGcLater">Più tardi</button>';
     }else if(backupDue()){
       cls='warn';
       var lb=S.settings.lastBackup;
@@ -3704,6 +3711,9 @@ function pdfGeometry(opList,OPS){
     var sch=$('stCh'),schr=$('stChRead');
     if(sch)sch.onclick=chOpen;
     if(schr)schr.onclick=chRead;
+    var gcb=$('stGc'),gcl=$('stGcLater');
+    if(gcb)gcb.onclick=function(){b.style.display='none';gcSync(true).then(function(){try{showBanner()}catch(e){}})};
+    if(gcl)gcl.onclick=function(){gcSnooze=true;b.style.display='none'};
     var sgb=$('stSg'),sgl=$('stSgLater');
     if(sgb)sgb.onclick=function(){b.style.display='none';showTab('A')};
     if(sgl)sgl.onclick=function(){segSnooze=true;b.style.display='none'};
@@ -3756,7 +3766,7 @@ function pdfGeometry(opList,OPS){
   (function(){var ch=false;S.entries.forEach(function(e){if(e.sala){var n=salaName(e.sala);if(n!==e.sala){e.sala=n;ch=true}}});if(ch)save()})();
   /* app riaperta dopo ore senza ricaricare la pagina: i controlli automatici (3 ore) ripartono */
   document.addEventListener('visibilitychange',function(){if(!document.hidden&&agLink)agAuto().then(schAuto)});
-  render();showBanner();agInit();handleLink();setTimeout(function(){shSync();shFlush()},2500);
+  render();showBanner();agInit();handleLink();setTimeout(function(){shSync();shFlush();gcQueue()},2500);
 })();
 </script>
 </body>
