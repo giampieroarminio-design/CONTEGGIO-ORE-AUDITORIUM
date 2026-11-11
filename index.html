@@ -2642,7 +2642,7 @@ function pdfGeometry(opList,OPS){
       shGBusy=true;shgUi('Invio di '+gg+'…');
       var fatti=0,tot=0;
       gruppi.reduce(function(pr,gr,ix){return pr.then(function(){
-        var url='action=giorni&c='+encodeURIComponent(c)+'&r='+encodeURIComponent(JSON.stringify(gr));
+        var url='action=segnala&r='+encodeURIComponent(JSON.stringify([{id:'giorni',g:{c:c,da:gr.da,items:gr.items}}]));   // stessa chiamata del registro, che dal telefono funziona
         shgUi('Invio di '+gg+'… ('+(ix+1)+' di '+gruppi.length+')');
         return agCall(url,70000).then(function(x){   // lo script ricostruisce un foglio intero: può metterci più di mezzo minuto
           if(!x||!x.ok||typeof x.n!=='number'){var er=new Error('risposta');er.passo=ix+1;throw er}   // uno script vecchio risponde «ok» senza aver scritto niente: senza il numero non conta
@@ -3465,8 +3465,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=78,APP_DATE='9 novembre 2026';
+  var APP_VERSION=79,APP_DATE='9 novembre 2026';
   var APP_LOG=[
+    [79,'Griglia dei colleghi: i giorni viaggiano con la stessa chiamata del registro delle segnalazioni (l\'altra non riceveva risposta dal telefono)'],
     [78,'Griglia dei colleghi: i giorni vengono mandati a gruppi piccoli (un indirizzo troppo lungo veniva rifiutato da Google) e la riga nelle impostazioni dice a che invio si ferma'],
     [77,'Griglia dei colleghi: l\'app aspetta più a lungo la risposta dello script (la ricostruzione del foglio del mese è lenta)'],
     [76,'Impostazioni: la riga «Griglia dei colleghi» dice se i tuoi giorni sono stati mandati al foglio condiviso, e il motivo se non è riuscito; pulsante «Manda i miei giorni ora»'],
