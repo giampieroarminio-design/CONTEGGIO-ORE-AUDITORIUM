@@ -2355,7 +2355,7 @@ function pdfGeometry(opList,OPS){
     var a=b.getAttribute('data-sg'),id=b.getAttribute('data-id');
     if(a==='open')segOpen(id);
     else if(a==='sent'){var g=segList().find(function(x){return x.id===id});if(g){g.sent=new Date().toISOString();save();segRefresh();toast('Segnalata a Laura')}}
-    else if(a==='del'){S.seg=segList().filter(function(x){return x.id!==id});save();segRefresh()}
+    else if(a==='del'){var dm=shGet(SH_D,{});dm[id]=1;shPut(SH_D,dm);S.seg=segList().filter(function(x){return x.id!==id});save();segRefresh()}
     else if(a==='altro'){var go=segList().find(function(x){return x.id===id});if(go){go.sent=new Date().toISOString();go.byOther=true;save();segRefresh();toast('Segnata: la comunica un collega')}}
     else if(a==='deldisp'){var dx=dispList().find(function(x){return x.id===id});S.disp=dispList().filter(function(x){return x.id!==id});if(dx)segDropDisp(dx);save();render();toast(segPending().some(function(g){return g.tipo==='annulla'&&g.ref==='ann-parziale-'+id})?'Disponibilità tolta: prepara l\'annullamento per Laura':'Disponibilità tolta')}
   }
@@ -2586,7 +2586,7 @@ function pdfGeometry(opList,OPS){
 
   /* --- registro condiviso delle segnalazioni (v71): ogni segnalazione registrata finisce, tramite lo script della casella, in un foglio Google
      «Segnalazioni Ore Auditorium»; una riga per segnalazione, che si aggiorna (da inviare → mail aperta → inviata). Stato in chiavi a parte (non nel backup). --- */
-  var SH_Q=KEY+'.shq',SH_K=KEY+'.shk',shBusy=false,shTimer=null;
+  var SH_Q=KEY+'.shq',SH_K=KEY+'.shk',SH_D=KEY+'.shd',shBusy=false,shTimer=null;
   function shGet(k,d){try{var v=JSON.parse(localStorage.getItem(k)||'null');return v==null?d:v}catch(e){return d}}
   function shPut(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
   function shStato(g){return g.sent?(g.byOther?'comunicata da un collega':'inviata'):(g.opened?'mail aperta':'da inviare')}
@@ -2606,7 +2606,11 @@ function pdfGeometry(opList,OPS){
       Object.keys(known).forEach(function(id){
         if(now[id])return;
         var st=String(known[id]).split('|')[0];
-        if(st==='da inviare'||st==='mail aperta'){q=q.filter(function(x){return x.id!==id});q.push({id:id,stato:'ritirata'});ch=true}
+        if(st==='da inviare'||st==='mail aperta'){
+          var dism=shGet(SH_D,{}),nuovo=dism[id]?'non inviata':'annullata';   // ✕ «non serve segnalarla» ≠ richiesta davvero tolta
+          q=q.filter(function(x){return x.id!==id});q.push({id:id,stato:nuovo});ch=true;
+          if(dism[id]){delete dism[id];shPut(SH_D,dism)}
+        }
       });
       if(ch||Object.keys(known).length!==Object.keys(now).length){shPut(SH_K,now);shPut(SH_Q,q.slice(-200))}
       if(q.length)shLater();
@@ -3465,8 +3469,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=79,APP_DATE='9 novembre 2026';
+  var APP_VERSION=80,APP_DATE='9 novembre 2026';
   var APP_LOG=[
+    [80,'Foglio delle segnalazioni: se premi la ✕ «non serve segnalarla» la riga diventa «non inviata» (la prolunga o l\'assenza restano nell\'app); se la richiesta viene davvero tolta diventa «annullata» (prima per entrambe c\'era «ritirata»)'],
     [79,'Griglia dei colleghi: i giorni viaggiano con la stessa chiamata del registro delle segnalazioni (l\'altra non riceveva risposta dal telefono)'],
     [78,'Griglia dei colleghi: i giorni vengono mandati a gruppi piccoli (un indirizzo troppo lungo veniva rifiutato da Google) e la riga nelle impostazioni dice a che invio si ferma'],
     [77,'Griglia dei colleghi: l\'app aspetta più a lungo la risposta dello script (la ricostruzione del foglio del mese è lenta)'],
