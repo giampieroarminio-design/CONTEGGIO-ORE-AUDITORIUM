@@ -3003,8 +3003,10 @@ function pdfGeometry(opList,OPS){
     (schItems||[]).forEach(function(x){
       var s=schedaParse(x.name);if(!s||s.date.indexOf(e.date)<0)return;
       var cw=schParole(s.cliente),nm=cw.filter(function(w){return pw.some(function(p){return schEq(p,w)})}).length;
-      var ev=cw.length>0&&nm>=Math.min(2,cw.length);   // con più parole nel nome della scheda ne servono almeno due: una sola in comune (es. «REF») non basta
       var sa=(!s.sala||!e.sala)?null:(s.sala===schCanon(e.sala));
+      /* come prima: con la sala uguale basta una parola in comune. Se la sala è diversa o non c'è, con più parole nel nome della scheda ne servono almeno due
+         (una sola, es. «REF», non basta a dire che è la scheda di questo evento) */
+      var ev=cw.length>0&&nm>=(sa===true?1:Math.min(2,cw.length));
       var g=ev&&sa!==false?0:(sa===true&&!pw.length?1:(sa===true?2:(ev?1:-1)));
       if(g<0)return;
       var k=s.cliente+'|'+s.sala+'|'+s.date.join(),it={x:x,s:s,g:g},b=by[k];
@@ -3415,7 +3417,7 @@ function pdfGeometry(opList,OPS){
   })();
   var APP_VERSION=73,APP_DATE='9 novembre 2026';
   var APP_LOG=[
-    [73,'Schede evento: l\'abbinamento legge tutto il testo dell\'evento (non solo il primo rigo) e, quando il nome della scheda ha più parole, ne richiede almeno due in comune: niente più schede di altri eventi segnalate per una sola parola uguale (es. «REF»)'],
+    [73,'Schede evento: l\'abbinamento legge tutto il testo dell\'evento (non solo il primo rigo) e, quando la sala non coincide o non c\'è e il nome della scheda ha più parole, ne richiede almeno due in comune: niente più schede di altri eventi segnalate per una sola parola uguale (es. «REF»); con la sala uguale resta come prima'],
     [72,'Google Calendar: l\'app non chiede più da sola l\'accesso a Google all\'apertura; se i turni sono cambiati compare un avviso con il pulsante «Aggiorna ora»'],
     [71,'Registro delle segnalazioni: prolunghe, giorni liberi, disponibilità e cambi turno registrati nell\'app finiscono anche in un foglio Google condivisibile con Laura (una riga per segnalazione, con lo stato)'],
     [70,'iPhone (Safari): il doppio tocco veloce sulle frecce del calendario non ingrandisce più la pagina'],
