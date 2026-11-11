@@ -2610,7 +2610,7 @@ function pdfGeometry(opList,OPS){
   }
   /* griglia mensile dei colleghi (v74): i miei giorni di assenza e disponibilità parziale, da oggi in poi, vanno allo script che li mette nel foglio del mese.
      Codici: F ferie · L giorno libero · A altra assenza (malattia, permessi, 104: senza dire il motivo) · P disponibilità parziale. */
-  var SH_G=KEY+'.shg',shGBusy=false,shGTimer=null;
+  var SH_G=KEY+'.shg2',shGBusy=false,shGTimer=null;
   function shGItems(){
     var da=todayStr().slice(0,8)+'01',by={};
     (S.disp||[]).forEach(function(x){if(x.date>=da)by[x.date]={d:x.date,k:'P',t:dispTxt(x)}});
@@ -2626,7 +2626,7 @@ function pdfGeometry(opList,OPS){
       if(url.length>6000)return;
       shGBusy=true;
       agCall(url,25000).then(function(x){
-        if(!x||!x.ok)throw new Error('risposta');
+        if(!x||!x.ok||typeof x.n!=='number')throw new Error('risposta');   // uno script vecchio risponde «ok» senza aver scritto niente: senza il numero non conta
         try{localStorage.setItem(SH_G,sig)}catch(e){}
         shGBusy=false;
       }).catch(function(){shGBusy=false;clearTimeout(shGTimer);shGTimer=setTimeout(shGiorni,60000)});
@@ -2638,7 +2638,7 @@ function pdfGeometry(opList,OPS){
     var q=shGet(SH_Q,[]);if(!q.length)return;
     var part=q.slice(0,5);shBusy=true;
     agCall('action=segnala&r='+encodeURIComponent(JSON.stringify(part)),25000).then(function(r){
-      if(!r||!r.ok)throw new Error('risposta');
+      if(!r||!r.ok||typeof r.n!=='number')throw new Error('risposta');   // uno script vecchio risponde «ok» senza aver scritto niente
       var ids={};part.forEach(function(x){ids[x.id+'|'+x.stato]=1});
       shPut(SH_Q,shGet(SH_Q,[]).filter(function(x){return !ids[x.id+'|'+x.stato]}));
       shBusy=false;shLater();
@@ -3440,8 +3440,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=74,APP_DATE='9 novembre 2026';
+  var APP_VERSION=75,APP_DATE='9 novembre 2026';
   var APP_LOG=[
+    [75,'Griglia e registro: se lo script della casella è vecchio e non ha scritto niente, l\'app lo riconosce e riprova invece di segnare tutto come inviato'],
     [74,'Griglia dei colleghi: i giorni liberi, le ferie, le altre assenze (senza il motivo) e le disponibilità parziali vanno anche in un foglio Google per mese, una riga per collega e una colonna per giorno, per vedere chi manca in una data'],
     [73,'Schede evento: l\'abbinamento legge tutto il testo dell\'evento (non solo il primo rigo) e, quando la sala non coincide o non c\'è e il nome della scheda ha più parole, ne richiede almeno due in comune: niente più schede di altri eventi segnalate per una sola parola uguale (es. «REF»); con la sala uguale resta come prima'],
     [72,'Google Calendar: l\'app non chiede più da sola l\'accesso a Google all\'apertura; se i turni sono cambiati compare un avviso con il pulsante «Aggiorna ora»'],
