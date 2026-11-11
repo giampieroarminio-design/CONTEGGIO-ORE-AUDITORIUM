@@ -2636,7 +2636,7 @@ function pdfGeometry(opList,OPS){
       var url='action=giorni&c='+encodeURIComponent(c)+'&r='+encodeURIComponent(sig);
       if(url.length>6000){shgUi('Troppi giorni da mandare in una volta.');return}
       shGBusy=true;shgUi('Invio di '+r.items.length+(r.items.length===1?' giorno':' giorni')+'…');
-      agCall(url,25000).then(function(x){
+      agCall(url,70000).then(function(x){   // lo script ricostruisce un foglio intero: può metterci più di mezzo minuto
         if(!x||!x.ok||typeof x.n!=='number')throw new Error('risposta');   // uno script vecchio risponde «ok» senza aver scritto niente: senza il numero non conta
         try{localStorage.setItem(SH_G,sig)}catch(e){}
         shGBusy=false;var d=new Date();shgUi('Inviati '+r.items.length+(r.items.length===1?' giorno':' giorni')+' alle '+pad(d.getHours())+':'+pad(d.getMinutes())+'.');
@@ -3453,8 +3453,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=76,APP_DATE='9 novembre 2026';
+  var APP_VERSION=77,APP_DATE='9 novembre 2026';
   var APP_LOG=[
+    [77,'Griglia dei colleghi: l\'app aspetta più a lungo la risposta dello script (la ricostruzione del foglio del mese è lenta)'],
     [76,'Impostazioni: la riga «Griglia dei colleghi» dice se i tuoi giorni sono stati mandati al foglio condiviso, e il motivo se non è riuscito; pulsante «Manda i miei giorni ora»'],
     [75,'Griglia e registro: se lo script della casella è vecchio e non ha scritto niente, l\'app lo riconosce e riprova invece di segnare tutto come inviato'],
     [74,'Griglia dei colleghi: i giorni liberi, le ferie, le altre assenze (senza il motivo) e le disponibilità parziali vanno anche in un foglio Google per mese, una riga per collega e una colonna per giorno, per vedere chi manca in una data'],
