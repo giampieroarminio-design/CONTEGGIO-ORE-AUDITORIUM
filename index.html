@@ -2998,12 +2998,12 @@ function pdfGeometry(opList,OPS){
   /* schede che riguardano un turno: giorno obbligatorio; il nome dell'evento è la prova forte, la sala un rinforzo */
   function schedeFor(e){
     if(!e||!e.date||e.date<todayStr())return [];   // le schede servono per i giorni a venire: oggi compreso, passato no
-    var first=String(e.evento||'').split('\n')[0],pw=schParole(first);
-    if(!pw.length)pw=schParole(e.evento||'');
+    var pw=schParole(e.evento||'');   // tutto il testo dell'evento (il nome vero può non stare nel primo rigo, es. «REF ULTIMA DATA … The Classical Rave Party»)
     var out=[],by={};
     (schItems||[]).forEach(function(x){
       var s=schedaParse(x.name);if(!s||s.date.indexOf(e.date)<0)return;
-      var ev=schParole(s.cliente).some(function(w){return pw.some(function(p){return schEq(p,w)})});
+      var cw=schParole(s.cliente),nm=cw.filter(function(w){return pw.some(function(p){return schEq(p,w)})}).length;
+      var ev=cw.length>0&&nm>=Math.min(2,cw.length);   // con più parole nel nome della scheda ne servono almeno due: una sola in comune (es. «REF») non basta
       var sa=(!s.sala||!e.sala)?null:(s.sala===schCanon(e.sala));
       var g=ev&&sa!==false?0:(sa===true&&!pw.length?1:(sa===true?2:(ev?1:-1)));
       if(g<0)return;
@@ -3413,8 +3413,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=72,APP_DATE='9 novembre 2026';
+  var APP_VERSION=73,APP_DATE='9 novembre 2026';
   var APP_LOG=[
+    [73,'Schede evento: l\'abbinamento legge tutto il testo dell\'evento (non solo il primo rigo) e, quando il nome della scheda ha più parole, ne richiede almeno due in comune: niente più schede di altri eventi segnalate per una sola parola uguale (es. «REF»)'],
     [72,'Google Calendar: l\'app non chiede più da sola l\'accesso a Google all\'apertura; se i turni sono cambiati compare un avviso con il pulsante «Aggiorna ora»'],
     [71,'Registro delle segnalazioni: prolunghe, giorni liberi, disponibilità e cambi turno registrati nell\'app finiscono anche in un foglio Google condivisibile con Laura (una riga per segnalazione, con lo stato)'],
     [70,'iPhone (Safari): il doppio tocco veloce sulle frecce del calendario non ingrandisce più la pagina'],
