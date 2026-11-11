@@ -2631,17 +2631,29 @@ function pdfGeometry(opList,OPS){
       if(!agLink){shgUi('Questa app non ha l\'indirizzo dello script della casella: la griglia non si può aggiornare.');return}
       if(shGBusy)return;
       var r=shGItems(),sig=JSON.stringify(r),old=null;try{old=localStorage.getItem(SH_G)}catch(e){}
-      if(!force&&old===sig){shgUi('Griglia già aggiornata ('+r.items.length+(r.items.length===1?' giorno':' giorni')+').');return}
-      if(!r.items.length&&old===null){shgUi('Nessun giorno da mandare: registra un\'assenza, un giorno libero o una disponibilità da questo mese in poi.');return}
-      var url='action=giorni&c='+encodeURIComponent(c)+'&r='+encodeURIComponent(sig);
-      if(url.length>6000){shgUi('Troppi giorni da mandare in una volta.');return}
-      shGBusy=true;shgUi('Invio di '+r.items.length+(r.items.length===1?' giorno':' giorni')+'…');
-      agCall(url,70000).then(function(x){   // lo script ricostruisce un foglio intero: può metterci più di mezzo minuto
-        if(!x||!x.ok||typeof x.n!=='number')throw new Error('risposta');   // uno script vecchio risponde «ok» senza aver scritto niente: senza il numero non conta
+      var nn=r.items.length,gg=nn+(nn===1?' giorno':' giorni');
+      if(!force&&old===sig){shgUi('Griglia già aggiornata ('+gg+').');return}
+      if(!nn&&old===null){shgUi('Nessun giorno da mandare: registra un\'assenza, un giorno libero o una disponibilità da questo mese in poi.');return}
+      /* a gruppi piccoli: un indirizzo troppo lungo viene rifiutato. Ogni invio sostituisce i giorni dalla sua data «da» in poi, quindi si manda in ordine di data:
+         i gruppi dopo il primo rimettono a posto quello che il primo aveva tolto */
+      var gruppi=[];
+      if(!nn)gruppi.push({da:r.da,items:[]});
+      for(var k=0;k<nn;k+=12){var it=r.items.slice(k,k+12);gruppi.push({da:k?it[0].d:r.da,items:it})}
+      shGBusy=true;shgUi('Invio di '+gg+'…');
+      var fatti=0,tot=0;
+      gruppi.reduce(function(pr,gr,ix){return pr.then(function(){
+        var url='action=giorni&c='+encodeURIComponent(c)+'&r='+encodeURIComponent(JSON.stringify(gr));
+        shgUi('Invio di '+gg+'… ('+(ix+1)+' di '+gruppi.length+')');
+        return agCall(url,70000).then(function(x){   // lo script ricostruisce un foglio intero: può metterci più di mezzo minuto
+          if(!x||!x.ok||typeof x.n!=='number'){var er=new Error('risposta');er.passo=ix+1;throw er}   // uno script vecchio risponde «ok» senza aver scritto niente: senza il numero non conta
+          tot+=x.n;fatti++;
+        },function(e){e.passo=ix+1;throw e});
+      })},Promise.resolve()).then(function(){
         try{localStorage.setItem(SH_G,sig)}catch(e){}
-        shGBusy=false;var d=new Date();shgUi('Inviati '+r.items.length+(r.items.length===1?' giorno':' giorni')+' alle '+pad(d.getHours())+':'+pad(d.getMinutes())+'.');
+        shGBusy=false;var d=new Date();shgUi('Inviati '+gg+' alle '+pad(d.getHours())+':'+pad(d.getMinutes())+'.');
       }).catch(function(e){shGBusy=false;clearTimeout(shGTimer);shGTimer=setTimeout(shGiorni,60000);
-        shgUi(e&&e.message==='risposta'?'Lo script ha risposto ma non ha scritto niente: probabilmente non è aggiornato (serve la «Nuova versione» della distribuzione). Riprovo da solo.':'Nessuna risposta dallo script (rete?). Riprovo da solo.')});
+        var pz=e&&e.passo?' (invio '+e.passo+' di '+gruppi.length+')':'';
+        shgUi(e&&e.message==='risposta'?'Lo script ha risposto ma non ha scritto niente: probabilmente non è aggiornato (serve la «Nuova versione» della distribuzione)'+pz+'. Riprovo da solo.':'Nessuna risposta dallo script (rete?)'+pz+'. Riprovo da solo.')});
     }catch(e){shGBusy=false;shgUi('Errore imprevisto: '+(e&&e.message||e))}
   }
   $('shgNow').onclick=function(){shGiorni(true)};
@@ -3453,8 +3465,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=77,APP_DATE='9 novembre 2026';
+  var APP_VERSION=78,APP_DATE='9 novembre 2026';
   var APP_LOG=[
+    [78,'Griglia dei colleghi: i giorni vengono mandati a gruppi piccoli (un indirizzo troppo lungo veniva rifiutato da Google) e la riga nelle impostazioni dice a che invio si ferma'],
     [77,'Griglia dei colleghi: l\'app aspetta più a lungo la risposta dello script (la ricostruzione del foglio del mese è lenta)'],
     [76,'Impostazioni: la riga «Griglia dei colleghi» dice se i tuoi giorni sono stati mandati al foglio condiviso, e il motivo se non è riuscito; pulsante «Manda i miei giorni ora»'],
     [75,'Griglia e registro: se lo script della casella è vecchio e non ha scritto niente, l\'app lo riconosce e riprova invece di segnare tutto come inviato'],
