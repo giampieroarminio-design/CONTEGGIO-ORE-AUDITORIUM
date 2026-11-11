@@ -513,6 +513,11 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
   </div>
   <p class="hint" id="gcMsg" role="status" style="font-weight:600;color:var(--ink)"></p>
 
+  <label>Griglia dei colleghi</label>
+  <p class="hint" style="margin:0 0 8px">I tuoi giorni liberi, le ferie, le altre assenze (senza il motivo) e le disponibilità parziali, da questo mese in poi, vanno nel foglio condiviso per mese, così i colleghi vedono chi manca in una data.</p>
+  <button class="btn sm" id="shgNow">Manda i miei giorni ora</button>
+  <p class="hint" id="shgInfo" role="status" style="font-weight:600;color:var(--ink)"></p>
+
   <label>Copia di sicurezza</label>
   <p class="hint" style="margin:0 0 8px">I dati stanno solo in questo browser: se cancelli i dati di navigazione o cambi telefono si perdono. Salva ogni tanto un file di backup e conservalo fuori dal telefono (per esempio su Drive). Il backup contiene turni, ore, assenze e impostazioni; squadre ed eventi si riottengono reimportando i PDF.</p>
   <div class="two">
@@ -1887,7 +1892,7 @@ function pdfGeometry(opList,OPS){
     $('sCrew').checked=S.settings.crew!==false;
     $('sWheel').checked=S.settings.wheel!==false;
     $('sRem').checked=S.settings.backupRemind!==false;
-    gcUi('');
+    gcUi('');shGiorni();
     $('sBk').value='';
     $('ovS').classList.add('on');
   };
@@ -2617,21 +2622,29 @@ function pdfGeometry(opList,OPS){
     (S.abs||[]).forEach(function(a){if(a.date>=da)by[a.date]={d:a.date,k:a.type==='ferie'?'F':(a.type==='libero'?'L':'A'),t:''}});
     return {da:da,items:Object.keys(by).sort().map(function(d){return by[d]}).slice(0,200)};
   }
-  function shGiorni(){
+  var shGMsg='';
+  function shgUi(m){if(m!=null)shGMsg=m;var el=$('shgInfo');if(el)el.textContent=shGMsg}
+  function shGiorni(force){
     try{
-      var c=(S.settings.surname||'').trim();if(!c||!agLink||shGBusy)return;
+      var c=(S.settings.surname||'').trim();
+      if(!c){shgUi('Manca il tuo cognome: scrivilo nelle impostazioni.');return}
+      if(!agLink){shgUi('Questa app non ha l\'indirizzo dello script della casella: la griglia non si può aggiornare.');return}
+      if(shGBusy)return;
       var r=shGItems(),sig=JSON.stringify(r),old=null;try{old=localStorage.getItem(SH_G)}catch(e){}
-      if(old===sig||(old===null&&!r.items.length))return;
+      if(!force&&old===sig){shgUi('Griglia già aggiornata ('+r.items.length+(r.items.length===1?' giorno':' giorni')+').');return}
+      if(!r.items.length&&old===null){shgUi('Nessun giorno da mandare: registra un\'assenza, un giorno libero o una disponibilità da questo mese in poi.');return}
       var url='action=giorni&c='+encodeURIComponent(c)+'&r='+encodeURIComponent(sig);
-      if(url.length>6000)return;
-      shGBusy=true;
+      if(url.length>6000){shgUi('Troppi giorni da mandare in una volta.');return}
+      shGBusy=true;shgUi('Invio di '+r.items.length+(r.items.length===1?' giorno':' giorni')+'…');
       agCall(url,25000).then(function(x){
         if(!x||!x.ok||typeof x.n!=='number')throw new Error('risposta');   // uno script vecchio risponde «ok» senza aver scritto niente: senza il numero non conta
         try{localStorage.setItem(SH_G,sig)}catch(e){}
-        shGBusy=false;
-      }).catch(function(){shGBusy=false;clearTimeout(shGTimer);shGTimer=setTimeout(shGiorni,60000)});
-    }catch(e){shGBusy=false}
+        shGBusy=false;var d=new Date();shgUi('Inviati '+r.items.length+(r.items.length===1?' giorno':' giorni')+' alle '+pad(d.getHours())+':'+pad(d.getMinutes())+'.');
+      }).catch(function(e){shGBusy=false;clearTimeout(shGTimer);shGTimer=setTimeout(shGiorni,60000);
+        shgUi(e&&e.message==='risposta'?'Lo script ha risposto ma non ha scritto niente: probabilmente non è aggiornato (serve la «Nuova versione» della distribuzione). Riprovo da solo.':'Nessuna risposta dallo script (rete?). Riprovo da solo.')});
+    }catch(e){shGBusy=false;shgUi('Errore imprevisto: '+(e&&e.message||e))}
   }
+  $('shgNow').onclick=function(){shGiorni(true)};
   function shLater(){clearTimeout(shTimer);shTimer=setTimeout(shFlush,1500)}
   function shFlush(){
     if(shBusy||!agLink)return;
@@ -3440,8 +3453,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=75,APP_DATE='9 novembre 2026';
+  var APP_VERSION=76,APP_DATE='9 novembre 2026';
   var APP_LOG=[
+    [76,'Impostazioni: la riga «Griglia dei colleghi» dice se i tuoi giorni sono stati mandati al foglio condiviso, e il motivo se non è riuscito; pulsante «Manda i miei giorni ora»'],
     [75,'Griglia e registro: se lo script della casella è vecchio e non ha scritto niente, l\'app lo riconosce e riprova invece di segnare tutto come inviato'],
     [74,'Griglia dei colleghi: i giorni liberi, le ferie, le altre assenze (senza il motivo) e le disponibilità parziali vanno anche in un foglio Google per mese, una riga per collega e una colonna per giorno, per vedere chi manca in una data'],
     [73,'Schede evento: l\'abbinamento legge tutto il testo dell\'evento (non solo il primo rigo) e, quando la sala non coincide o non c\'è e il nome della scheda ha più parole, ne richiede almeno due in comune: niente più schede di altri eventi segnalate per una sola parola uguale (es. «REF»); con la sala uguale resta come prima'],
