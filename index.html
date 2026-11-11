@@ -3034,14 +3034,16 @@ function pdfGeometry(opList,OPS){
   function schEq(a,b){return a===b||(a.length>=5&&b.length>=5&&a.slice(0,5)===b.slice(0,5))}
   function schedaParse(nome){
     var n=String(nome||'').replace(/\.pdf$/i,'').replace(/_/g,' ').replace(/\s+/g,' ').trim().replace(/^scheda te\w+ /i,'');
-    var m=n.match(/^(\d{1,2}(?: ?- ?\d{1,2})*) (\d{1,2}|[A-Za-z]{3,9}) (\d{2}|\d{4}) (.+)$/);
+    n=n.replace(/^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4}) /,'$1 $2 $3 ');   // «21.11.26 EMERGENCY…» con i punti
+    var m=n.match(/^(\d{1,2}(?:(?: ?- ?| )\d{1,2})*) (\d{1,2}|[A-Za-z]{3,9}) (\d{2}|\d{4}) (.+)$/);
     if(!m||/convocazion/i.test(n))return null;
     var MESI={gen:1,jan:1,feb:2,mar:3,apr:4,mag:5,may:5,giu:6,jun:6,lug:7,jul:7,ago:8,aug:8,set:9,sep:9,ott:10,oct:10,nov:11,dic:12,dec:12};
     if(isNaN(+m[2])){m[2]=MESI[m[2].slice(0,3).toLowerCase()];if(!m[2])return null}
-    var t=m[1].split(/ ?- ?/).map(Number),mese=+m[2],anno=+m[3]<100?2000+(+m[3]):+m[3],dates=[];
+    var t=m[1].split(/ ?- ?| /).map(Number),mese=+m[2],anno=+m[3]<100?2000+(+m[3]):+m[3],dates=[];
     if(mese<1||mese>12)return null;
     function ds2(y,mo,d){return y+'-'+pad(mo)+'-'+pad(d)}
-    if(t.length===2&&t[1]>t[0]){for(var d=t[0];d<=t[1];d++)dates.push(ds2(anno,mese,d))}
+    if(m[1].indexOf('-')<0)dates=t.map(function(d){return ds2(anno,mese,d)});   // «18 19 11 26»: due giorni, non un intervallo
+    else if(t.length===2&&t[1]>t[0]){for(var d=t[0];d<=t[1];d++)dates.push(ds2(anno,mese,d))}
     else if(t.length===2&&t[1]<t[0]){var last=new Date(anno,mese,0).getDate(),ny=mese===12?anno+1:anno,nm=mese===12?1:mese+1;for(var a=t[0];a<=last;a++)dates.push(ds2(anno,mese,a));for(var b=1;b<=t[1];b++)dates.push(ds2(ny,nm,b))}
     else dates=t.map(function(d){return ds2(anno,mese,d)});
     var rest=schNorm(m[4]),sp=schSalaPos(rest),cl=sp?rest.slice(0,sp.i):rest;
@@ -3469,8 +3471,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=80,APP_DATE='9 novembre 2026';
+  var APP_VERSION=81,APP_DATE='9 novembre 2026';
   var APP_LOG=[
+    [81,'Schede evento: riconosciute anche le schede col giorno scritto con i punti («21.11.26 …») e con più giorni separati da spazio («18 19 11 26 …»)'],
     [80,'Foglio delle segnalazioni: se premi la ✕ «non serve segnalarla» la riga diventa «non inviata» (la prolunga o l\'assenza restano nell\'app); se la richiesta viene davvero tolta diventa «annullata» (prima per entrambe c\'era «ritirata»)'],
     [79,'Griglia dei colleghi: i giorni viaggiano con la stessa chiamata del registro delle segnalazioni (l\'altra non riceveva risposta dal telefono)'],
     [78,'Griglia dei colleghi: i giorni vengono mandati a gruppi piccoli (un indirizzo troppo lungo veniva rifiutato da Google) e la riga nelle impostazioni dice a che invio si ferma'],
