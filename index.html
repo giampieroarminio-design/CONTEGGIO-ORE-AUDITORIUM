@@ -2606,6 +2606,31 @@ function pdfGeometry(opList,OPS){
       if(ch||Object.keys(known).length!==Object.keys(now).length){shPut(SH_K,now);shPut(SH_Q,q.slice(-200))}
       if(q.length)shLater();
     }catch(e){}
+    shGiorni();
+  }
+  /* griglia mensile dei colleghi (v74): i miei giorni di assenza e disponibilità parziale, da oggi in poi, vanno allo script che li mette nel foglio del mese.
+     Codici: F ferie · L giorno libero · A altra assenza (malattia, permessi, 104: senza dire il motivo) · P disponibilità parziale. */
+  var SH_G=KEY+'.shg',shGBusy=false,shGTimer=null;
+  function shGItems(){
+    var da=todayStr().slice(0,8)+'01',by={};
+    (S.disp||[]).forEach(function(x){if(x.date>=da)by[x.date]={d:x.date,k:'P',t:dispTxt(x)}});
+    (S.abs||[]).forEach(function(a){if(a.date>=da)by[a.date]={d:a.date,k:a.type==='ferie'?'F':(a.type==='libero'?'L':'A'),t:''}});
+    return {da:da,items:Object.keys(by).sort().map(function(d){return by[d]}).slice(0,200)};
+  }
+  function shGiorni(){
+    try{
+      var c=(S.settings.surname||'').trim();if(!c||!agLink||shGBusy)return;
+      var r=shGItems(),sig=JSON.stringify(r),old=null;try{old=localStorage.getItem(SH_G)}catch(e){}
+      if(old===sig||(old===null&&!r.items.length))return;
+      var url='action=giorni&c='+encodeURIComponent(c)+'&r='+encodeURIComponent(sig);
+      if(url.length>6000)return;
+      shGBusy=true;
+      agCall(url,25000).then(function(x){
+        if(!x||!x.ok)throw new Error('risposta');
+        try{localStorage.setItem(SH_G,sig)}catch(e){}
+        shGBusy=false;
+      }).catch(function(){shGBusy=false;clearTimeout(shGTimer);shGTimer=setTimeout(shGiorni,60000)});
+    }catch(e){shGBusy=false}
   }
   function shLater(){clearTimeout(shTimer);shTimer=setTimeout(shFlush,1500)}
   function shFlush(){
@@ -2619,7 +2644,7 @@ function pdfGeometry(opList,OPS){
       shBusy=false;shLater();
     }).catch(function(){shBusy=false});   // se non riesce resta in coda e riprova al prossimo salvataggio o apertura
   }
-  window.__shProva={sync:shSync,flush:shFlush};
+  window.__shProva={sync:shSync,flush:shFlush,giorni:shGiorni};
 
   function showTab(t){
     tab=t;
@@ -3415,8 +3440,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=73,APP_DATE='9 novembre 2026';
+  var APP_VERSION=74,APP_DATE='9 novembre 2026';
   var APP_LOG=[
+    [74,'Griglia dei colleghi: i giorni liberi, le ferie, le altre assenze (senza il motivo) e le disponibilità parziali vanno anche in un foglio Google per mese, una riga per collega e una colonna per giorno, per vedere chi manca in una data'],
     [73,'Schede evento: l\'abbinamento legge tutto il testo dell\'evento (non solo il primo rigo) e, quando la sala non coincide o non c\'è e il nome della scheda ha più parole, ne richiede almeno due in comune: niente più schede di altri eventi segnalate per una sola parola uguale (es. «REF»); con la sala uguale resta come prima'],
     [72,'Google Calendar: l\'app non chiede più da sola l\'accesso a Google all\'apertura; se i turni sono cambiati compare un avviso con il pulsante «Aggiorna ora»'],
     [71,'Registro delle segnalazioni: prolunghe, giorni liberi, disponibilità e cambi turno registrati nell\'app finiscono anche in un foglio Google condivisibile con Laura (una riga per segnalazione, con lo stato)'],
