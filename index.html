@@ -1073,6 +1073,8 @@ function colInfo(items,geo){
   }
   return ci;
 }
+/* distanza massima fra il nome e i suoi orari IN/OUT: la prima colonna dei nomi (Tecnici luce) può stare a più di 80 punti dall'orario */
+var TOLT=100;
 function parseConvocazioni(items, surname, today, geo, forceDate){
   var ci=colInfo(items,geo),lines=ci.hy;
   var GIORNI={LUN:1,MAR:2,MER:3,GIO:4,VEN:5,SAB:6,DOM:0};
@@ -1165,7 +1167,7 @@ function parseConvocazioni(items, surname, today, geo, forceDate){
       rows.forEach(function(it){
         var s=String(it.s).trim();
         if(isT(s))return;
-        var left=rows.filter(function(t){return Math.abs(t.y-it.y)<2.5&&t.x<it.x&&it.x-t.x<80&&isT(t.s)}).sort(function(a,b){return b.x-a.x}).slice(0,2);
+        var left=rows.filter(function(t){return Math.abs(t.y-it.y)<2.5&&t.x<it.x&&it.x-t.x<TOLT&&isT(t.s)}).sort(function(a,b){return b.x-a.x}).slice(0,2);
         if(left.length<2)return;
         if(isStruck(it)||(isStruck(left[0])&&isStruck(left[1])))return;
         var c=it.x+(it.w||0)/2,best=null,bd=1e9;
@@ -1321,7 +1323,7 @@ function parseConvocazioni(items, surname, today, geo, forceDate){
     var d=new Date(base.getFullYear(),base.getMonth(),base.getDate()+(b-first.b));
     var lab=labels.filter(function(l){return l.b===b})[0];
     var bad=!useSeps||!lab||lab.dn!==d.getDate();
-    var times=items.filter(function(it){return Math.abs(it.y-nm.y)<2.5&&it.x<nm.x&&nm.x-it.x<80&&/^\d{1,2}:\d{2}$/.test(String(it.s).trim())})
+    var times=items.filter(function(it){return Math.abs(it.y-nm.y)<2.5&&it.x<nm.x&&nm.x-it.x<TOLT&&/^\d{1,2}:\d{2}$/.test(String(it.s).trim())})
       .sort(function(a,b){return b.x-a.x}).slice(0,2);
     if(times.length<2){incomplete++;return}
     var strk=isStruck(nm)||(isStruck(times[0])&&isStruck(times[1]));
@@ -3471,8 +3473,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=81,APP_DATE='9 novembre 2026';
+  var APP_VERSION=82,APP_DATE='9 novembre 2026';
   var APP_LOG=[
+    [82,'Convocazioni: letti anche i turni dei colleghi nella prima colonna dei nomi (Tecnici luce), il cui orario sta un po\' più lontano dal nome'],
     [81,'Schede evento: riconosciute anche le schede col giorno scritto con i punti («21.11.26 …») e con più giorni separati da spazio («18 19 11 26 …»)'],
     [80,'Foglio delle segnalazioni: se premi la ✕ «non serve segnalarla» la riga diventa «non inviata» (la prolunga o l\'assenza restano nell\'app); se la richiesta viene davvero tolta diventa «annullata» (prima per entrambe c\'era «ritirata»)'],
     [79,'Griglia dei colleghi: i giorni viaggiano con la stessa chiamata del registro delle segnalazioni (l\'altra non riceveva risposta dal telefono)'],
