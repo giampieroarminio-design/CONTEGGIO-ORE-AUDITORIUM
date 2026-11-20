@@ -433,6 +433,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     <button class="btn pri" id="rCopy">Copia testo</button>
     <button class="btn full" id="rShare">Condividi…</button>
     <button class="btn full" id="rCal">Aggiungi i turni al calendario</button>
+    <button class="btn full" id="rRep">Manda il report del mese al Drive</button>
   </div>
 </div></div>
 
@@ -1032,6 +1033,30 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     var u=URL.createObjectURL(new Blob([r.txt],{type:'text/calendar'})),a=document.createElement('a');
     a.href=u;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(u)},4000);toast('File del calendario pronto: aprilo per aggiungere i '+r.n+' turni');
+  };
+  /* report mensile per la consulente (v83): le ore effettive di ogni giorno del mese, dai turni confermati, nel foglio «Report ore mensili» del Drive della casella */
+  var ABSC={ferie:'F',libero:'L',malattia:'M',permesso:'P',l104:'104'};
+  function repData(k){
+    var days={},abs={},fest=[],y=+k.slice(0,4),m=+k.slice(5,7),n=new Date(y,m,0).getDate(),nc=0;
+    S.entries.forEach(function(e){
+      if(mkey(e.date)!==k)return;
+      if(!conf(e)){nc++;return}
+      var d=dur(e);if(d>0)days[e.date]=(days[e.date]||0)+d;
+    });
+    (S.abs||[]).forEach(function(a){if(mkey(a.date)===k)abs[a.date]=ABSC[a.type]||'A'});
+    for(var d=1;d<=n;d++){var x=ds(y,m,d);if(holidayName(x))fest.push(x)}
+    var f=festive(k);
+    return {nc:nc,rep:{m:k,c:(S.settings.surname||'').trim().toUpperCase(),days:days,abs:abs,fest:fest,tot:workedIn(k),hol:f.hol,sun:f.sun,cr:absMonth(k).cr}};
+  }
+  $('rRep').onclick=function(){
+    if(!(S.settings.surname||'').trim()){toast('Scrivi prima il tuo cognome nelle impostazioni');return}
+    if(!agLink){toast('Questa app non ha l\'indirizzo dello script della casella');return}
+    var r=repData(view);
+    toast('Invio del report di '+monthLabel(view)+'…');
+    agCall('action=segnala&r='+encodeURIComponent(JSON.stringify([{id:'report',rep:r.rep}])),70000).then(function(x){
+      if(!x||!x.ok||typeof x.n!=='number')throw new Error('risposta');
+      toast('Report di '+monthLabel(view)+' mandato ('+fmt(r.rep.tot)+' ore'+(r.nc?'; '+r.nc+(r.nc===1?' turno ancora da confermare non è incluso':' turni ancora da confermare non sono inclusi'):'')+')');
+    }).catch(function(e){toast(e&&e.message==='risposta'?'Lo script non ha scritto il report: va aggiornato (Nuova versione)':'Report non mandato: nessuna risposta dallo script. Riprova')});
   };
   $('rShare').onclick=function(){
     if(navigator.share){navigator.share({title:'Ore lavorate',text:$('rTxt').value}).catch(function(){})}
@@ -3473,8 +3498,9 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=82,APP_DATE='9 novembre 2026';
+  var APP_VERSION=83,APP_DATE='9 novembre 2026';
   var APP_LOG=[
+    [83,'Report mensile: dal riepilogo del mese il pulsante «Manda il report del mese al Drive» manda le ore effettive di ogni giorno (turni confermati), con i totali delle ore domenicali e festive, a un foglio per mese pensato per la consulente del lavoro'],
     [82,'Convocazioni: letti anche i turni dei colleghi nella prima colonna dei nomi (Tecnici luce), il cui orario sta un po\' più lontano dal nome'],
     [81,'Schede evento: riconosciute anche le schede col giorno scritto con i punti («21.11.26 …») e con più giorni separati da spazio («18 19 11 26 …»)'],
     [80,'Foglio delle segnalazioni: se premi la ✕ «non serve segnalarla» la riga diventa «non inviata» (la prolunga o l\'assenza restano nell\'app); se la richiesta viene davvero tolta diventa «annullata» (prima per entrambe c\'era «ritirata»)'],
