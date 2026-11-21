@@ -267,6 +267,7 @@ details{margin-top:16px}summary{cursor:pointer;font-weight:600;color:var(--mute)
 .agr:last-child{border-bottom:0}
 .agr b{font-weight:700}
 .agr small{display:block;color:var(--mute);font-weight:500}
+.btn.ready{background:var(--pos);color:#fff;border-color:transparent}
 .agr .agok{color:var(--pos);font-weight:700;font-size:13px;white-space:nowrap}
 .chg-box{border:3px solid var(--sun);border-radius:12px;padding:10px 12px;margin:0 0 12px;background:var(--card)}
 .chg-box>b{display:block;font-size:15px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px}
@@ -1035,7 +1036,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
     setTimeout(function(){URL.revokeObjectURL(u)},4000);toast('File del calendario pronto: aprilo per aggiungere i '+r.n+' turni');
   };
   /* report mensile per la consulente (v83): le ore effettive di ogni giorno del mese, dai turni confermati, nel foglio «Report ore mensili» del Drive della casella */
-  var ABSC={ferie:'F',libero:'L',malattia:'M',permesso:'P',l104:'104'};
+  var ABSC={ferie:'F',malattia:'M',l104:'104'};   // alla consulente servono solo ferie, malattia e 104 (non i giorni liberi o i permessi concordati)
   function repData(k){
     var days={},abs={},fest=[],y=+k.slice(0,4),m=+k.slice(5,7),n=new Date(y,m,0).getDate(),nc=0;
     S.entries.forEach(function(e){
@@ -1043,7 +1044,7 @@ textarea{min-height:96px;resize:vertical;font-size:13px}
       if(!conf(e)){nc++;return}
       var d=dur(e);if(d>0)days[e.date]=(days[e.date]||0)+d;
     });
-    (S.abs||[]).forEach(function(a){if(mkey(a.date)===k)abs[a.date]=ABSC[a.type]||'A'});
+    (S.abs||[]).forEach(function(a){if(mkey(a.date)===k&&ABSC[a.type])abs[a.date]=ABSC[a.type]});
     for(var d=1;d<=n;d++){var x=ds(y,m,d);if(holidayName(x))fest.push(x)}
     var f=festive(k);
     return {nc:nc,rep:{m:k,c:(S.settings.surname||'').trim().toUpperCase(),days:days,abs:abs,fest:fest,tot:workedIn(k),hol:f.hol,sun:f.sun,cr:absMonth(k).cr}};
@@ -1423,6 +1424,18 @@ function pdfGeometry(opList,OPS){
   var newCats={},newCov=[],newPdfName='';
   var found=[],vlist=[],vInfo={dates:[],older:false,newPdfAt:null,noShifts:false,surname:''},newPdfAt=null;
   function iMsg(t){$('iMsg').textContent=t}
+  /* v86: più convocazioni pronte insieme. Ogni PDF letto è una "istantanea" (turni trovati, sostituiti, date, ecc.):
+     quelle già lette restano in parked, quella in corso è nelle variabili sopra; si importano tutte con un solo tocco */
+  var parked=[],pdfBusy=false,segK=0;
+  function snapCur(){return {found:found,vlist:vlist,vInfo:vInfo,newPdfAt:newPdfAt,newCats:newCats,newCov:newCov,newPdfName:newPdfName}}
+  function useSnap(s){found=s.found;vlist=s.vlist;vInfo=s.vInfo;newPdfAt=s.newPdfAt;newCats=s.newCats;newCov=s.newCov;newPdfName=s.newPdfName}
+  function eachSnap(fn){var cur=snapCur();try{parked.concat([cur]).forEach(function(s,k){useSnap(s);segK=k;fn(s,k)})}finally{useSnap(cur)}}
+  function snapHas(s){var o=snapCur();try{useSnap(s);var c=counts();return !!(c.a||c.u||c.f||c.d||c.cv)}finally{useSnap(o)}}
+  /* prima di leggere un altro PDF: se quello in corso ha qualcosa da importare lo metto da parte */
+  function parkCurrent(nextName){
+    parked=parked.filter(function(s){return s.newPdfName!==nextName});
+    if(newPdfName&&newPdfName!==nextName&&snapHas(snapCur())){parked=parked.filter(function(s){return s.newPdfName!==newPdfName});parked.push(snapCur())}
+  }
   function loadPdfJs(){
     return new Promise(function(res,rej){
       if(window.pdfjsLib)return res(window.pdfjsLib);
@@ -1532,7 +1545,7 @@ function pdfGeometry(opList,OPS){
     return h+'</div>';
   }
   function seg(i,act,label,cur){
-    return '<button type="button" data-i="'+i+'" data-a="'+act+'" class="'+(cur===act?'on':'')+'" aria-pressed="'+(cur===act)+'">'+label+'</button>';
+    return '<button type="button" data-i="'+i+'" data-k="'+segK+'" data-a="'+act+'" class="'+(cur===act?'on':'')+'" aria-pressed="'+(cur===act)+'">'+label+'</button>';
   }
   /* cambi di turno che riguardano l'utente: turni cambiati, tolti, nuovi (in settimane già importate), sala cambiata */
   function chPair(x){return x.s+' – '+x.e+(x.sala?' · '+esc(x.sala):'')}
@@ -1568,7 +1581,7 @@ function pdfGeometry(opList,OPS){
     return out;
   }
   function chBoxHtml(){
-    var cs=computeChanges();
+    var cs=[];eachSnap(function(){cs=cs.concat(computeChanges())});
     if(!cs.length)return '';
     return '<div class="chg-box"><b>Cosa cambia per te</b>'+cs.map(function(c){return chLine(c,false)}).join('')+'</div>';
   }
@@ -1586,8 +1599,30 @@ function pdfGeometry(opList,OPS){
   $('chRead').onclick=chRead;
   function renderPrev(){
     var box=$('iPrev'),go=$('iPdfGo');
-    if(!found.length&&!vlist.length&&!vInfo.older&&!vInfo.noShifts){box.style.display='none';go.style.display='none';qBar();return}
-    box.innerHTML=chBoxHtml()+found.map(function(r,i){
+    if(!parked.length&&!found.length&&!vlist.length&&!vInfo.older&&!vInfo.noShifts){box.style.display='none';go.style.display='none';qBar();agPaint();return}
+    var htmlAll=chBoxHtml(),tot={a:0,d:0,u:0,sf:0,cf:0,ef:0,cv:0},many=parked.length>0;
+    eachSnap(function(s){
+      if(many){var al=agLabel(agParse(s.newPdfName||''));htmlAll+='<div class="pi" style="border-top:2px solid var(--line)"><b>'+esc(al?'Settimana '+al:(s.newPdfName||'Convocazione'))+'</b></div>'}
+      htmlAll+=partHtml();
+      var c=counts();['a','d','u','sf','cf','ef','cv'].forEach(function(k){tot[k]+=c[k]});
+    });
+    box.innerHTML=htmlAll;
+    box.style.display='';
+    var c=tot,parts=[];
+    if(c.a)parts.push(c.a===1?'1 nuovo':c.a+' nuovi');
+    if(c.d)parts.push(c.d===1?'1 vecchio rimosso':c.d+' vecchi rimossi');
+    if(c.u)parts.push(c.u===1?'1 aggiornato':c.u+' aggiornati');
+    if(c.sf)parts.push(c.sf===1?'sala aggiunta a 1 turno':'sala aggiunta a '+c.sf+' turni');
+    if(c.cf)parts.push(c.cf===1?'squadra aggiunta a 1 turno':'squadra aggiunta a '+c.cf+' turni');
+    if(c.ef)parts.push(c.ef===1?'evento aggiunto a 1 turno':'evento aggiunto a '+c.ef+' turni');
+    if(c.cv)parts.push('giorni liberi segnati');
+    if(parts.length){go.textContent='Importa'+(many?' tutto ('+(parked.length+1)+' convocazioni)':'')+': '+parts.join(', ');go.style.display=''}
+    else{go.style.display='none';eachSnap(function(s){if(s.newPdfName&&s.found.length)agMark(s.newPdfName)})}
+    qBar();agPaint();
+  }
+  /* la parte di anteprima di UNA convocazione (quella "in corso" nelle variabili) */
+  function partHtml(){
+    return found.map(function(r,i){
       var h='<div class="pi"><span class="num">'+fmtDay(r.date)+' &nbsp; '+r.ps+' – '+r.pe+(r.sala?' <em class="sl">'+esc(r.sala)+'</em>':'')+'</span>';
       if(r.warn)h+='<small class="wr">controlla la data</small>';
       if(r.absT)h+='<small class="wr">Attenzione: hai segnato questo giorno come '+esc(ABS[r.absT])+'</small>';
@@ -1604,24 +1639,13 @@ function pdfGeometry(opList,OPS){
       }
       return h+'</div>';
     }).join('')+vanishedHtml();
-    box.style.display='';
-    var c=counts(),parts=[];
-    if(c.a)parts.push(c.a===1?'1 nuovo':c.a+' nuovi');
-    if(c.d)parts.push(c.d===1?'1 vecchio rimosso':c.d+' vecchi rimossi');
-    if(c.u)parts.push(c.u===1?'1 aggiornato':c.u+' aggiornati');
-    if(c.sf)parts.push(c.sf===1?'sala aggiunta a 1 turno':'sala aggiunta a '+c.sf+' turni');
-    if(c.cf)parts.push(c.cf===1?'squadra aggiunta a 1 turno':'squadra aggiunta a '+c.cf+' turni');
-    if(c.ef)parts.push(c.ef===1?'evento aggiunto a 1 turno':'evento aggiunto a '+c.ef+' turni');
-    if(c.cv)parts.push('giorni liberi segnati');
-    if(parts.length){go.textContent='Importa: '+parts.join(', ');go.style.display=''}
-    else{go.style.display='none';if(newPdfName&&found.length)agMark(newPdfName)}
-    qBar();
   }
   $('iPrev').onclick=function(ev){
+    var snaps=parked.concat([snapCur()]);
     var vb=ev.target.closest('button[data-v]');
-    if(vb){var v=vlist[+vb.getAttribute('data-v')];if(v){v.act=vb.getAttribute('data-a');renderPrev()}return}
+    if(vb){var sv=snaps[+vb.getAttribute('data-k')||0]||snaps[0],v=sv.vlist[+vb.getAttribute('data-v')];if(v){v.act=vb.getAttribute('data-a');renderPrev()}return}
     var b=ev.target.closest('button[data-i]');if(!b)return;
-    var r=found[+b.getAttribute('data-i')];
+    var sb=snaps[+b.getAttribute('data-k')||0]||snaps[0],r=sb.found[+b.getAttribute('data-i')];
     if(r){r.act=b.getAttribute('data-a');renderPrev()}
   };
   function resetPdfUi(){var fx=$('iFix');if(fx)fx.style.display='none';found=[];vlist=[];vInfo={dates:[],older:false,newPdfAt:null,noShifts:false,surname:''};newPdfAt=null;newCats={};newCov=[];newPdfName='';renderPrev();iMsg('')}
@@ -1633,7 +1657,7 @@ function pdfGeometry(opList,OPS){
     renderPrev();
     var c=counts(),same=found.filter(function(r){return r.status==='same'}).length;
     var conflicts=found.filter(function(r){return r.status==='conflict'}).length;
-    var m='Ho trovato '+list.length+(list.length===1?' turno.':' turni.');
+    var m=(parked.length?'Hai '+(parked.length+1)+' convocazioni pronte da importare insieme. ':'')+'Ho trovato '+list.length+(list.length===1?' turno.':' turni.');
     if(conflicts)m+=' Per '+(conflicts===1?'1 giorno':conflicts+' giorni')+' hai già un turno: scegli cosa fare.';
     else if(c.a)m+=' Confrontali con il PDF prima di importare.';
     if(found.length&&same===found.length)m+=' Sono tutti già presenti nell\'app.';
@@ -1653,7 +1677,7 @@ function pdfGeometry(opList,OPS){
   };
   /* --- più PDF insieme (v54): per ogni settimana si tiene la versione più recente e si mostra una settimana per volta --- */
   var Q=null;
-  function qReset(){Q=null;qBar()}
+  function qReset(){Q=null;parked=[];qBar()}
   function qBar(){
     var h=$('iQHead'),nx=$('iQNext');
     if(!Q){h.style.display='none';nx.style.display='none';return}
@@ -1734,6 +1758,7 @@ function pdfGeometry(opList,OPS){
     var surname=S.settings.surname||'';
     if(!surname.trim()){iMsg('Prima scrivi il tuo cognome nelle impostazioni (⚙).');return}
     if(!S.settings.surnameOk){iMsg('Prima conferma che '+surname+' è il tuo cognome.');return}
+    pdfBusy=true;
     loadPdfJs().then(function(lib){
       return f.arrayBuffer().then(function(buf){return lib.getDocument({data:new Uint8Array(buf),isEvalSupported:false}).promise});
     }).then(function(doc){
@@ -1776,7 +1801,7 @@ function pdfGeometry(opList,OPS){
       });
     }).catch(function(){
       iMsg('Non riesco a leggere il PDF qui. Usa "incolla il testo" qui sotto, o mandalo a Claude in chat.');
-    });
+    }).then(function(){pdfBusy=false;agPaint()});
   }
 
   /* applica le scelte */
@@ -1787,7 +1812,7 @@ function pdfGeometry(opList,OPS){
     }
     if(r.evento)e.evento=r.evento;else delete e.evento;
   }
-  function applyImport(skipAbs,doDel){
+  function applyOne(skipAbs,doDel,T){
     var add=0,upd=0,fill=0,skip=0,del=0,first=null;
     var chs=computeChanges().filter(function(c){return !(skipAbs&&c.k==='add'&&absOn(c.d).length)});
     function stamp(e){if(newPdfAt)e.pdfAt=newPdfAt}
@@ -1814,7 +1839,7 @@ function pdfGeometry(opList,OPS){
     if(doDel){
       var gone=vlist.filter(function(v){return v.planned&&v.act==='del'}).map(function(v){return v.e});
       if(gone.length){
-        try{localStorage.setItem(dKey(),JSON.stringify({at:new Date().toISOString(),entries:gone}))}catch(e){}
+        T.gone=(T.gone||[]).concat(gone);
         var ids={};gone.forEach(function(e){ids[e.id]=1});
         S.entries=S.entries.filter(function(e){return !ids[e.id]});
         del=gone.length;
@@ -1836,6 +1861,14 @@ function pdfGeometry(opList,OPS){
     if(newCov.length)covAdd(newCov);
     if(newPdfName)agMark(newPdfName);
     if(newCov.length&&newPdfAt){if(!S.pdfw)S.pdfw={};newCov.forEach(function(d){var k=mondayOf(d);if(!S.pdfw[k]||S.pdfw[k]<newPdfAt)S.pdfw[k]=newPdfAt})}
+    T.add+=add;T.upd+=upd;T.fill+=fill;T.skip+=skip;T.del+=del;if(first&&(!T.first||first<T.first))T.first=first;
+  }
+  function applyImport(skipAbs,doDel){
+    var T={add:0,upd:0,fill:0,skip:0,del:0,first:null,gone:null};
+    eachSnap(function(){applyOne(skipAbs,doDel,T)});
+    parked=[];
+    if(T.gone&&T.gone.length){try{localStorage.setItem(dKey(),JSON.stringify({at:new Date().toISOString(),entries:T.gone}))}catch(e){}}
+    var add=T.add,upd=T.upd,fill=T.fill,skip=T.skip,del=T.del,first=T.first;
     pruneCrew();save();if(first){view=mkey(first);weekHint=first}render();showBanner();
     var piuPdf=!!(Q&&Q.idx<Q.items.length-1);
     if(!piuPdf){qReset();$('ovI').classList.remove('on')}
@@ -1845,7 +1878,7 @@ function pdfGeometry(opList,OPS){
   }
   function step2(skipAbs){applyImport(skipAbs,true)}
   $('iPdfGo').onclick=function(){
-    var conflicts=found.filter(function(r){return (r.status==='new'||(r.status==='conflict'&&r.act==='add'))&&absOn(r.date).length});
+    var conflicts=[];eachSnap(function(s){conflicts=conflicts.concat(s.found.filter(function(r){return (r.status==='new'||(r.status==='conflict'&&r.act==='add'))&&absOn(r.date).length}))});
     if(conflicts.length){
       askConfirm({
         title:'Giorni già segnati come liberi',
@@ -2578,20 +2611,32 @@ function pdfGeometry(opList,OPS){
     /* senza tocco dell'utente non si chiede mai l'accesso a Google (su telefono aprirebbe una pagina di Google): si avvisa e basta */
     if(!interactive&&!(gcTok&&Date.now()<gcExp-60000)){gcPending=true;try{showBanner()}catch(e){}return Promise.resolve()}
     gcBusy=true;gcPending=false;
-    var n=0;
+    var n=0,falliti=[];
+    function ko(o,r){falliti.push({d:o.d||'',http:r.http,msg:(r.error&&r.error.message)||'',why:(r.error&&r.error.errors&&r.error.errors[0]&&r.error.errors[0].reason)||''})}
     return gcToken(interactive).then(function(){
+      /* un turno rifiutato non ferma gli altri: si va avanti e alla fine si dice cosa non ha funzionato */
       return ops.reduce(function(pr,o){return pr.then(function(){
         var eid=gcEvId(o.id),base='calendars/'+encodeURIComponent(gc.calId)+'/events';
-        if(o.k==='del')return gcFetch('DELETE',base+'/'+eid).then(function(r){if(r.http<300||r.http===404||r.http===410){delete gc.sync[o.id];n++}else throw new Error('api')});
+        if(o.k==='del')return gcFetch('DELETE',base+'/'+eid).then(function(r){if(r.http<300||r.http===404||r.http===410){delete gc.sync[o.id];n++}else ko(o,r)});
         var b=JSON.parse(JSON.stringify(o.p));b.id=eid;
         return gcFetch('POST',base,b).then(function(r){
           if(r.http===409){delete b.id;return gcFetch('PUT',base+'/'+eid,b)}
           return r;
-        }).then(function(r){if(r.http<300){gc.sync[o.id]={h:o.h,d:o.d};n++}else throw new Error('api')});
+        }).then(function(r){if(r.http<300){gc.sync[o.id]={h:o.h,d:o.d};n++}else ko(o,r)});
       })},Promise.resolve());
-    }).then(function(){gcSaveState();gcBusy=false;gcUi(n?'Google Calendar aggiornato ('+n+(n===1?' turno':' turni')+').':'Google Calendar è già aggiornato.');return n},function(e){
+    }).then(function(){
+      gcSaveState();gcBusy=false;
+      if(!falliti.length){gcPending=false;gcUi(n?'Google Calendar aggiornato ('+n+(n===1?' turno':' turni')+').':'Google Calendar è già aggiornato.');return n}
+      gcPending=true;try{showBanner()}catch(x){}
+      var f0=falliti[0],lim=falliti.some(function(f){return f.http===429||/rateLimit|quotaExceeded|userRateLimit/i.test(f.why)});
+      var cal=falliti.some(function(f){return f.http===404});
+      gcUi(cal?'Il calendario «Turni Auditorium» non risulta più su Google Calendar (forse è stato eliminato). Premi «Scollega» e poi «Collega Google Calendar» per ricrearlo.'
+        :(lim?'Google chiede di rallentare (troppe richieste). Riprova fra qualche minuto con «Aggiorna ora».'
+        :'Google non ha accettato '+falliti.length+(falliti.length===1?' turno':' turni')+(n?' (altri '+n+' sono andati bene)':'')+'. Il primo'+(f0.d?': '+f0.d.slice(8,10)+'/'+f0.d.slice(5,7):'')+', codice '+f0.http+(f0.msg?' · '+f0.msg.slice(0,120):'')+'.'));
+      return n;
+    },function(e){
       gcSaveState();gcBusy=false;gcPending=true;try{showBanner()}catch(x){}
-      gcUi(e&&e.message==='api'?'Google non ha accettato alcuni turni: riprova tra poco con «Aggiorna ora».':'Per aggiornare Google Calendar tocca «Aggiorna ora» nelle impostazioni (serve il tuo consenso).');
+      gcUi('Per aggiornare Google Calendar tocca «Aggiorna ora» nelle impostazioni (serve il tuo consenso).');
     });
   }
   function gcQueue(){
@@ -3341,15 +3386,20 @@ function pdfGeometry(opList,OPS){
   }
   function agSay(t){$('agMsg').textContent=t||''}
   function agRender(){
-    var h='';
+    var h='',pr=snapNames();
     agItems.forEach(function(x,i){
       var done=!!(S.agDone||{})[x.name],al=agLabel(x.p),d=new Date(x.date);
       var when=isNaN(d.getTime())?'':'arrivata il '+d.toLocaleDateString('it-IT',{day:'numeric',month:'long'})+' alle '+pad(d.getHours())+':'+pad(d.getMinutes());
       h+='<div class="agr"><span><b>'+esc(al?'Settimana '+al:x.name)+'</b><small>'+(x.p.ver?'versione '+x.p.ver+' · ':'')+esc(when)+'</small></span>'+
-        (done?'<span class="agok">già importata</span>':'<button type="button" class="btn sm" data-ag="'+i+'">Importa</button>')+'</div>';
+        (done?'<span class="agok">già importata</span>':(pr[x.name]?'<button type="button" class="btn sm ready" data-ag="'+i+'">✓ Pronta</button>':'<button type="button" class="btn sm" data-ag="'+i+'">Importa</button>'))+'</div>';
     });
     $('agRes').innerHTML=h;
   }
+  /* convocazioni già lette e pronte (con qualcosa da importare) */
+  function snapNames(){
+    var o={};parked.concat([snapCur()]).forEach(function(s){if(s.newPdfName&&(s.found.length||s.vlist.length)&&snapHas(s))o[s.newPdfName]=1});return o;
+  }
+  function agPaint(){try{if(agItems&&agItems.length)agRender()}catch(e){}}
   function agCheck(){
     if(agBusy||!agLink)return;
     agBusy=true;agSay('Controllo le convocazioni arrivate…');$('agRes').innerHTML='';
@@ -3372,6 +3422,8 @@ function pdfGeometry(opList,OPS){
   /* "Importa": non resta mai bloccato; se il server è lento riprova da solo e, premendo di nuovo dopo 20 secondi, ricomincia */
   function agLoad(i,retry){
     var x=agItems[i];if(!x)return;
+    if(pdfBusy){agSay('Sto ancora leggendo la convocazione precedente, un attimo…');return}
+    if(snapNames()[x.name]){agSay('Questa convocazione è già pronta qui sotto.');return}
     if(!retry&&agLoadT&&Date.now()-agLoadT<20000){agSay('Sto ancora scaricando, il server di Google è lento. Un attimo…');return}
     agLoadT=Date.now();
     agSay(retry?'Il server è lento, riprovo a scaricare…':'Scarico la convocazione… può servire qualche secondo.');
@@ -3380,6 +3432,7 @@ function pdfGeometry(opList,OPS){
       var bin=atob(r.data),u=new Uint8Array(bin.length);
       for(var k=0;k<bin.length;k++)u[k]=bin.charCodeAt(k);
       agLoadT=0;agSay('');
+      parkCurrent(x.name);
       readPdfFile({name:x.name,arrayBuffer:function(){return Promise.resolve(u.buffer)}});
     }).catch(function(){
       if(!retry){agLoad(i,true);return}
@@ -3498,8 +3551,11 @@ function pdfGeometry(opList,OPS){
     fm.innerHTML='<option value="">—</option>'+M.map(function(n,i){return '<option value="'+pad(i+1)+'">'+n+'</option>'}).join('');
     var h='';for(var y=y0-2;y<=y0+2;y++)h+='<option value="'+y+'">'+y+'</option>';fy.innerHTML=h;
   })();
-  var APP_VERSION=83,APP_DATE='9 novembre 2026';
+  var APP_VERSION=86,APP_DATE='21 novembre 2026';
   var APP_LOG=[
+    [86,'Verifica aggiornamenti: se ci sono più convocazioni da importare, premendo Importa su ciascuna i turni si accumulano nell\'anteprima (il tasto diventa verde «✓ Pronta») e si importano tutti insieme con un solo tocco'],
+    [85,'Report mensile: nel foglio per la consulente compaiono solo ferie, malattia e 104 (non giorni liberi e permessi); il 104 è scritto come testo e non più come un numero di ore'],
+    [84,'Google Calendar: se Google rifiuta qualche turno, l\'app va avanti con gli altri e dice quale turno e perché (calendario eliminato, troppe richieste, dato non valido)'],
     [83,'Report mensile: dal riepilogo del mese il pulsante «Manda il report del mese al Drive» manda le ore effettive di ogni giorno (turni confermati), con i totali delle ore domenicali e festive, a un foglio per mese pensato per la consulente del lavoro'],
     [82,'Convocazioni: letti anche i turni dei colleghi nella prima colonna dei nomi (Tecnici luce), il cui orario sta un po\' più lontano dal nome'],
     [81,'Schede evento: riconosciute anche le schede col giorno scritto con i punti («21.11.26 …») e con più giorni separati da spazio («18 19 11 26 …»)'],
